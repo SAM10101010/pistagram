@@ -1,0 +1,11 @@
+﻿ERROR|COMPILE_TIME_ERROR|UNDEFINED_METHOD|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\services\\reel_service.dart|42|32|10|The method 'deleteFile' isn't defined for the type 'CloudinaryService'.
+INFO|LINT|LIBRARY_PRIVATE_TYPES_IN_PUBLIC_API|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\main.dart|23|10|18|Invalid use of a private type in a public API.
+INFO|LINT|PREFER_FINAL_FIELDS|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\feed_screen.dart|28|19|20|The private field _followingUsers could be 'final'.
+INFO|LINT|PREFER_FINAL_FIELDS|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\feed_screen.dart|29|26|15|The private field _userCache could be 'final'.
+INFO|LINT|PREFER_FINAL_FIELDS|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\feed_screen.dart|30|15|18|The private field _likedReelIds could be 'final'.
+INFO|LINT|PREFER_FINAL_FIELDS|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\feed_screen.dart|31|15|18|The private field _savedReelIds could be 'final'.
+INFO|LINT|PREFER_FINAL_FIELDS|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\reels_screen.dart|36|26|18|The private field _creatorCache could be 'final'.
+INFO|LINT|PREFER_FINAL_FIELDS|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\reels_screen.dart|37|15|14|The private field _likedIds could be 'final'.
+INFO|LINT|PREFER_FINAL_FIELDS|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\reels_screen.dart|38|15|14|The private field _savedIds could be 'final'.
+INFO|LINT|CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\screens\\reward_store_screen.dart|65|20|270|Statements in an if should be enclosed in a block.
+INFO|HINT|DEPRECATED_MEMBER_USE|C:\\Users\\hp\\OneDrive\\Desktop\\personal projects\\pistagram\\lib\\services\\theme_provider.dart|68|42|5|'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion.

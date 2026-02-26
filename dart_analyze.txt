@@ -1,0 +1,43 @@
+﻿Analyzing lib...
+
+  error - screens\profile_screen.dart:179:18 - The getter 'displayName' isn't defined for the type 'UserModel'. Try importing the library that defines 'displayName', correcting the name to the name of an existing getter, or defining a getter or field named 'displayName'. - undefined_getter
+  error - screens\profile_screen.dart:207:65 - The named parameter 'user' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'user'. - undefined_named_parameter
+  error - screens\profile_screen.dart:240:29 - The named parameter 'uid' is required, but there's no corresponding argument. Try adding the required argument. - missing_required_argument
+  error - screens\profile_screen.dart:240:45 - The named parameter 'userId' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'userId'. - undefined_named_parameter
+  error - screens\profile_screen.dart:249:29 - The named parameter 'uid' is required, but there's no corresponding argument. Try adding the required argument. - missing_required_argument
+  error - screens\profile_screen.dart:249:45 - The named parameter 'userId' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'userId'. - undefined_named_parameter
+  error - screens\profile_screen.dart:266:39 - The getter 'points' isn't defined for the type 'UserModel'. Try importing the library that defines 'points', correcting the name to the name of an existing getter, or defining a getter or field named 'points'. - undefined_getter
+  error - screens\profile_screen.dart:351:41 - The getter 'viewCount' isn't defined for the type 'ReelModel'. Try importing the library that defines 'viewCount', correcting the name to the name of an existing getter, or defining a getter or field named 'viewCount'. - undefined_getter
+  error - screens\reels_screen.dart:226:15 - The named parameter 'totalPoints' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'totalPoints'. - undefined_named_parameter
+  error - screens\reels_screen.dart:464:58 - Expected an identifier. - missing_identifier
+  error - screens\reels_screen.dart:464:58 - Expected to find ':'. - expected_token
+  error - screens\reels_screen.dart:464:77 - Expected to find ')'. - expected_token
+warning - screens\explore_screen.dart:4:8 - Unused import: '../services/search_service.dart'. Try removing the import directive. - unused_import
+warning - screens\feed_screen.dart:6:8 - Unused import: '../services/firestore_service.dart'. Try removing the import directive. - unused_import
+warning - screens\feed_screen.dart:8:8 - Unused import: '../models/reel_model.dart'. Try removing the import directive. - unused_import
+warning - screens\feed_screen.dart:13:8 - Unused import: 'search_screen.dart'. Try removing the import directive. - unused_import
+warning - screens\feed_screen.dart:23:21 - The value of the field '_authService' isn't used. Try removing the field, or using it. - unused_field
+warning - screens\feed_screen.dart:24:21 - The value of the field '_feedService' isn't used. Try removing the field, or using it. - unused_field
+warning - screens\feed_screen.dart:25:27 - The value of the field '_engagementService' isn't used. Try removing the field, or using it. - unused_field
+warning - screens\messages_screen.dart:4:8 - Unused import: 'package:timeago/timeago.dart'. Try removing the import directive. - unused_import
+warning - screens\messages_screen.dart:5:8 - Unused import: '../models/message_model.dart'. Try removing the import directive. - unused_import
+warning - screens\messages_screen.dart:18:9 - The value of the field '_messagingService' isn't used. Try removing the field, or using it. - unused_field
+warning - screens\messages_screen.dart:19:9 - The value of the field '_authService' isn't used. Try removing the field, or using it. - unused_field
+warning - screens\messages_screen.dart:20:32 - The value of the field '_partnerCache' isn't used. Try removing the field, or using it. - unused_field
+warning - screens\profile_screen.dart:8:8 - Unused import: '../services/profile_service.dart'. Try removing the import directive. - unused_import
+warning - screens\profile_screen.dart:165:78 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion
+warning - screens\profile_screen.dart:166:62 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion
+warning - screens\profile_screen.dart:168:68 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion
+warning - screens\profile_screen.dart:186:45 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion
+warning - screens\profile_screen.dart:190:25 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion
+warning - screens\profile_screen.dart:328:48 - The left operand can't be null, so the right operand is never executed. Try removing the operator and the right operand. - dead_null_aware_expression
+warning - screens\reels_screen.dart:20:21 - The value of the field '_authService' isn't used. Try removing the field, or using it. - unused_field
+   info - main.dart:23:10 - Invalid use of a private type in a public API. Try making the private type public, or making the API that uses the private type also be private. - library_private_types_in_public_api
+   info - screens\messages_screen.dart:288:66 - Unnecessary braces in a string interpolation. Try removing the braces. - unnecessary_brace_in_string_interps
+   info - screens\reward_store_screen.dart:65:20 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - screens\settings_screen.dart:77:49 - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - screens\settings_screen.dart:77:64 - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - screens\wallet_screen.dart:154:34 - Unnecessary use of string interpolation. Try replacing the string literal with the variable name. - unnecessary_string_interpolations
+   info - services\theme_provider.dart:68:42 - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+
+39 issues found.

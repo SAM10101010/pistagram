@@ -1,0 +1,27 @@
+﻿Analyzing pistagram...                                          
+
+   info - Invalid use of a private type in a public API - lib\main.dart:24:10 - library_private_types_in_public_api
+   info - Statements in an if should be enclosed in a block - lib\screens\messages_screen.dart:39:30 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\screens\notifications_screen.dart:74:31 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\reels_screen.dart:457:35 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block - lib\screens\reward_store_screen.dart:65:20 - curly_braces_in_flow_control_structures
+   info - Unnecessary use of string interpolation - lib\screens\wallet_screen.dart:170:27 - unnecessary_string_interpolations
+
+flutter : 6 issues found. 
+(ran in 2.1s)
+At line:1 char:1
++ flutter analyze 
+--no-fatal-infos 
+--no-fatal-warnings 2>&1 | 
+Out-File  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo         
+     : NotSpecified: (6 i  
+  ssues found. (ran in 2   
+ .1s):String) [], Remot    
+eException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 

@@ -1,0 +1,42 @@
+﻿dart : Cannot negate 
+option 
+"--no-fatal-infos".
+At line:1 char:22
++ ... OLOR = '1'; dart 
+analyze 
+--no-fatal-infos 
+--no-fatal-warnings 
+lib 2>& ...
++                 ~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Cannot negate   
+  option "--no-fata    
+l-infos".:String)     
+[], RemoteExceptio    n
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+
+Usage: dart analyze 
+[arguments] 
+[<directory>]
+-h, --help             
+      Print this usage 
+information.
+    --fatal-infos      
+      Treat info level 
+issues as fatal.
+    
+--[no-]fatal-warnings  
+  Treat warning level 
+issues as fatal.
+                       
+      (defaults to on)
+
+Run "dart help" to see 
+global options.

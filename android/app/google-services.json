@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "527490877431",
+    "project_id": "pistagram-b9b50",
+    "storage_bucket": "pistagram-b9b50.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:527490877431:android:bbace8e2f61403fe9250f2",
+        "android_client_info": {
+          "package_name": "com.pistagram.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "527490877431-nm3laa4gsg8cil714g5bse8u439h1ncq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_Yte_otf995lF2aS3hEwDPt0roS6KnfY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "527490877431-nm3laa4gsg8cil714g5bse8u439h1ncq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

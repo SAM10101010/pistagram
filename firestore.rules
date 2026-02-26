@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // ── Users ──
+    match /users/{uid} {
+      allow read: if isAuth();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    // ── Reels ──
+    match /reels/{reelId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.auth.uid == request.resource.data.creatorUid;
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Posts ──
+    match /posts/{postId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.auth.uid == request.resource.data.creatorUid;
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Stories ──
+    match /stories/{storyId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.auth.uid == request.resource.data.creatorUid;
+      allow update: if isAuth();
+      allow delete: if isAuth();
+    }
+
+    // ── Follows ──
+    match /follows/{followId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAuth();
+    }
+
+    // ── Likes ──
+    match /likes/{likeId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow delete: if isAuth();
+    }
+
+    // ── Saves ──
+    match /saves/{saveId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow delete: if isAuth();
+    }
+
+    // ── Comments ──
+    match /comments/{commentId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAuth();
+    }
+
+    // ── Notifications ──
+    match /notifications/{notifId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Transactions ──
+    match /transactions/{txnId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Chats & Messages ──
+    match /chats/{chatId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+
+      match /messages/{messageId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+
+    // ── Rewards ──
+    match /rewards/{rewardId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+    }
+
+    // ── Redemptions ──
+    match /redemptions/{redemptionId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+    }
+
+    // ── Reports ──
+    match /reports/{reportId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+    }
+
+    // ── Blocks ──
+    match /blocks/{blockId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow delete: if isAuth();
+    }
+
+    // ── Fraud Flags ──
+    match /fraud_flags/{flagId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+    }
+  }
+}
