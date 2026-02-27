@@ -224,7 +224,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       await _firestore.unlikeReel(uid, reelId);
       _likedIds.remove(reelId);
     } else {
-      await _firestore.likeReel(uid, reelId);
+      await _firestore.likeReel(uid, reelId, creatorUid: _reels[index].creatorUid);
       _likedIds.add(reelId);
       // Reaction reward for liking (fire-and-forget)
       _reactionRewardService.onReelLiked(uid, reelId).catchError((_) => 0);
@@ -737,7 +737,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (_) => CommentsScreen(reelId: reel.reelId),
+                  builder: (_) => CommentsScreen(reelId: reel.reelId, creatorUid: reel.creatorUid),
                 ),
               ),
               const SizedBox(height: 18),

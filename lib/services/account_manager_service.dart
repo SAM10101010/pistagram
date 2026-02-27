@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/saved_account.dart';
 import 'firestore_service.dart';
+import 'cache_service.dart';
 
 class AccountManagerService {
   static const _storageKey = 'saved_accounts';
@@ -80,14 +82,30 @@ class AccountManagerService {
       throw Exception('Credentials not found. Please re-login.');
     }
 
+    // Clear all in-memory and disk caches before switching
+    CacheService.instance.clearAll();
+    await CacheService.instance.clearDiskCache();
+
     // Sign out current user
     await _auth.signOut();
 
     // Sign in with stored credentials
-    await _auth.signInWithEmailAndPassword(
-      email: account.email,
-      password: password,
-    );
+    if (password == '__google__') {
+      // Re-authenticate via Google Sign-In
+      final gUser = await GoogleSignIn().signIn();
+      if (gUser == null) throw Exception('Google sign-in cancelled');
+      final gAuth = await gUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: gAuth.accessToken,
+        idToken: gAuth.idToken,
+      );
+      await _auth.signInWithCredential(credential);
+    } else {
+      await _auth.signInWithEmailAndPassword(
+        email: account.email,
+        password: password,
+      );
+    }
   }
 
   /// Update account display info (call after profile loads)

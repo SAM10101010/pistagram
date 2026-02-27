@@ -232,7 +232,7 @@ class FirestoreService {
   // ═══════════════════════════════════════
   // LIKES
   // ═══════════════════════════════════════
-  Future<void> likeReel(String uid, String reelId) async {
+  Future<void> likeReel(String uid, String reelId, {String? creatorUid}) async {
     final batch = _db.batch();
     batch.set(_likes.doc('${uid}_$reelId'), {
       'uid': uid,
@@ -241,6 +241,18 @@ class FirestoreService {
     });
     batch.update(_reels.doc(reelId), {'likesCount': FieldValue.increment(1)});
     await batch.commit();
+
+    // Create notification for reel creator
+    if (creatorUid != null && creatorUid != uid) {
+      await addNotification(NotificationModel(
+        id: '${uid}_like_$reelId',
+        toUid: creatorUid,
+        fromUid: uid,
+        type: 'like',
+        message: 'liked your reel',
+        reelId: reelId,
+      ));
+    }
   }
 
   Future<void> unlikeReel(String uid, String reelId) async {
@@ -297,25 +309,60 @@ class FirestoreService {
         .toList();
   }
 
+  Future<List<String>> getLikedPostIds(String uid) async {
+    final snap = await _likes
+        .where('uid', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snap.docs
+        .where((d) => d.data()['postId'] != null)
+        .map((d) => d.data()['postId'] as String)
+        .toList();
+  }
+
   // ═══════════════════════════════════════
   // COMMENTS
   // ═══════════════════════════════════════
-  Future<void> addComment(CommentModel comment) async {
+  Future<void> addComment(CommentModel comment, {String? creatorUid}) async {
     final batch = _db.batch();
     batch.set(_comments.doc(comment.id), comment.toMap());
     batch.update(_reels.doc(comment.reelId), {
       'commentsCount': FieldValue.increment(1),
     });
     await batch.commit();
+
+    // Create notification for reel creator
+    if (creatorUid != null && creatorUid != comment.uid) {
+      await addNotification(NotificationModel(
+        id: 'comment_${comment.id}',
+        toUid: creatorUid,
+        fromUid: comment.uid,
+        type: 'comment',
+        message: 'commented on your reel',
+        reelId: comment.reelId,
+      ));
+    }
   }
 
-  Future<void> addPostComment(CommentModel comment) async {
+  Future<void> addPostComment(CommentModel comment, {String? creatorUid}) async {
     final batch = _db.batch();
     batch.set(_comments.doc(comment.id), comment.toMap());
     batch.update(_posts.doc(comment.reelId), {
       'commentsCount': FieldValue.increment(1),
     });
     await batch.commit();
+
+    // Create notification for post creator
+    if (creatorUid != null && creatorUid != comment.uid) {
+      await addNotification(NotificationModel(
+        id: 'comment_${comment.id}',
+        toUid: creatorUid,
+        fromUid: comment.uid,
+        type: 'comment',
+        message: 'commented on your post',
+        postId: comment.reelId,
+      ));
+    }
   }
 
   Future<void> deleteComment(String commentId, String reelId) async {
@@ -425,6 +472,12 @@ class FirestoreService {
   // ═══════════════════════════════════════
   // CHATS & MESSAGES
   // ═══════════════════════════════════════
+  Future<ChatModel?> getChat(String chatId) async {
+    final doc = await _chats.doc(chatId).get();
+    if (!doc.exists) return null;
+    return ChatModel.fromMap(doc.data()!);
+  }
+
   Future<ChatModel> getOrCreateChat(String uid1, String uid2) async {
     final participants = [uid1, uid2]..sort();
     final chatId = '${participants[0]}_${participants[1]}';
@@ -748,7 +801,7 @@ class FirestoreService {
     await _posts.doc(postId).update({'isActive': false});
   }
 
-  Future<void> likePost(String uid, String postId) async {
+  Future<void> likePost(String uid, String postId, {String? creatorUid}) async {
     final batch = _db.batch();
     batch.set(_likes.doc('${uid}_post_$postId'), {
       'uid': uid,
@@ -757,6 +810,18 @@ class FirestoreService {
     });
     batch.update(_posts.doc(postId), {'likesCount': FieldValue.increment(1)});
     await batch.commit();
+
+    // Create notification for post creator
+    if (creatorUid != null && creatorUid != uid) {
+      await addNotification(NotificationModel(
+        id: '${uid}_like_post_$postId',
+        toUid: creatorUid,
+        fromUid: uid,
+        type: 'like',
+        message: 'liked your post',
+        postId: postId,
+      ));
+    }
   }
 
   Future<void> unlikePost(String uid, String postId) async {

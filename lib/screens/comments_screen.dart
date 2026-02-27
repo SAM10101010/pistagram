@@ -12,7 +12,8 @@ import '../utils/animations.dart';
 class CommentsScreen extends StatefulWidget {
   final String reelId;
   final bool isPost;
-  const CommentsScreen({super.key, required this.reelId, this.isPost = false});
+  final String? creatorUid;
+  const CommentsScreen({super.key, required this.reelId, this.isPost = false, this.creatorUid});
 
   @override
   State<CommentsScreen> createState() => _CommentsScreenState();
@@ -43,9 +44,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
       text: text,
     );
     if (widget.isPost) {
-      await _firestore.addPostComment(comment);
+      await _firestore.addPostComment(comment, creatorUid: widget.creatorUid);
     } else {
-      await _firestore.addComment(comment);
+      await _firestore.addComment(comment, creatorUid: widget.creatorUid);
     }
     _commentCtrl.clear();
   }

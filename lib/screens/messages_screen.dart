@@ -61,6 +61,26 @@ class _MessagesScreenState extends State<MessagesScreen> {
           if (snap.connectionState == ConnectionState.waiting) {
             return _buildShimmerList(isDark);
           }
+          if (snap.hasError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: subColor),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Could not load messages',
+                    style: GoogleFonts.inter(color: subColor, fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => setState(() {}),
+                    child: Text('Retry', style: GoogleFonts.inter(color: accent)),
+                  ),
+                ],
+              ),
+            );
+          }
           final chats = snap.data ?? [];
           if (chats.isEmpty) {
             return Center(

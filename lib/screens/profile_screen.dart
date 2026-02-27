@@ -41,8 +41,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   List<ReelModel> _savedReels = [];
   List<PostModel> _savedPosts = [];
   List<ReelModel> _likedReels = [];
+  List<PostModel> _likedPosts = [];
   bool _loading = true;
   bool _isFollowing = false;
+  String _followStatus = 'none'; // none, pending, accepted
   bool _isOwn = true;
   List<Map<String, dynamic>> _earnedAchievements = [];
 
@@ -139,21 +141,24 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (!_isOwn) {
         try {
           final follow = await _firestore.getFollow(myUid, uid);
-          _isFollowing = follow != null;
+          _followStatus = follow?.status ?? 'none';
+          _isFollowing = follow != null && follow.status == 'accepted';
         } catch (e) {
           debugPrint('Error checking follow: $e');
         }
       }
 
-      // Load saved posts, saved reels & liked reels for own profile in parallel
+      // Load saved posts, saved reels & liked content for own profile in parallel
       if (_isOwn) {
         final savedReelsFuture = _loadSavedReels(myUid).catchError((_) => <ReelModel>[]);
         final savedPostsFuture = _loadSavedPosts(myUid).catchError((_) => <PostModel>[]);
-        final likedFuture = _loadLikedReels(myUid).catchError((_) => <ReelModel>[]);
-        final results = await Future.wait([savedReelsFuture, savedPostsFuture, likedFuture]);
+        final likedReelsFuture = _loadLikedReels(myUid).catchError((_) => <ReelModel>[]);
+        final likedPostsFuture = _loadLikedPosts(myUid).catchError((_) => <PostModel>[]);
+        final results = await Future.wait([savedReelsFuture, savedPostsFuture, likedReelsFuture, likedPostsFuture]);
         _savedReels = results[0] as List<ReelModel>;
         _savedPosts = results[1] as List<PostModel>;
         _likedReels = results[2] as List<ReelModel>;
+        _likedPosts = results[3] as List<PostModel>;
       }
 
       // Load achievements for profile display
@@ -188,16 +193,32 @@ class _ProfileScreenState extends State<ProfileScreen>
     return results.whereType<ReelModel>().toList();
   }
 
+  Future<List<PostModel>> _loadLikedPosts(String uid) async {
+    final ids = await _firestore.getLikedPostIds(uid);
+    final futures = ids.map((id) => _firestore.getPost(id));
+    final results = await Future.wait(futures);
+    return results.whereType<PostModel>().toList();
+  }
+
   Future<void> _toggleFollow() async {
     HapticFeedback.lightImpact();
     final myUid = _authService.currentUser?.uid ?? '';
     final targetUid = widget.userId ?? '';
-    if (_isFollowing) {
+    if (_isFollowing || _followStatus == 'pending') {
       await _followService.unfollowUser(myUid, targetUid);
+      _isFollowing = false;
+      _followStatus = 'none';
     } else {
       await _followService.followUser(myUid, targetUid);
+      // For private accounts, status becomes pending; for public, accepted
+      if (_user?.isPrivate ?? false) {
+        _followStatus = 'pending';
+        _isFollowing = false;
+      } else {
+        _followStatus = 'accepted';
+        _isFollowing = true;
+      }
     }
-    _isFollowing = !_isFollowing;
     _loadProfile();
   }
 
@@ -452,7 +473,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             subColor,
                           ),
                     _isOwn
-                        ? _buildReelsGrid(_likedReels, accent, isDark)
+                        ? _buildLikedTab(accent, isDark, subColor)
                         : _buildEmptyTab(
                             'Not visible',
                             Icons.lock_outline,
@@ -728,18 +749,22 @@ class _ProfileScreenState extends State<ProfileScreen>
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
-              gradient: _isFollowing
+              gradient: (_isFollowing || _followStatus == 'pending')
                   ? null
                   : LinearGradient(colors: [accent, accent.withAlpha(200)]),
-              border: _isFollowing ? Border.all(color: accent, width: 1.5) : null,
+              border: (_isFollowing || _followStatus == 'pending') ? Border.all(color: accent, width: 1.5) : null,
             ),
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: Text(
-                _isFollowing ? 'Following' : 'Follow',
-                key: ValueKey(_isFollowing),
+                _followStatus == 'pending'
+                    ? 'Requested'
+                    : _isFollowing
+                        ? 'Following'
+                        : 'Follow',
+                key: ValueKey(_followStatus),
                 style: GoogleFonts.inter(
-                  color: _isFollowing ? accent : Colors.white,
+                  color: (_isFollowing || _followStatus == 'pending') ? accent : Colors.white,
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
@@ -1259,6 +1284,108 @@ class _ProfileScreenState extends State<ProfileScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLikedTab(Color accent, bool isDark, Color subColor) {
+    if (_likedPosts.isEmpty && _likedReels.isEmpty) {
+      return _buildEmptyTab(
+        'No liked items yet',
+        Icons.favorite_outline,
+        subColor,
+      );
+    }
+
+    final totalCount = _likedPosts.length + _likedReels.length;
+    return GridView.builder(
+      padding: const EdgeInsets.all(4),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 4,
+        crossAxisSpacing: 4,
+      ),
+      itemCount: totalCount,
+      itemBuilder: (ctx, i) {
+        // Posts first, then reels
+        if (i < _likedPosts.length) {
+          final post = _likedPosts[i];
+          final thumb = post.mediaUrls.isNotEmpty ? post.mediaUrls[0] : '';
+          return GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              FadeScaleRoute(
+                page: PostDetailScreen(
+                  post: post,
+                  creator: null,
+                  isOwn: false,
+                ),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: thumb.isNotEmpty
+                        ? thumb
+                        : 'https://picsum.photos/200/300?random=${post.postId.hashCode}',
+                    fit: BoxFit.cover,
+                    placeholder: (c, u) => Container(
+                      color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withAlpha(100),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(Icons.photo, color: Colors.white, size: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Reel items
+        final reelIndex = i - _likedPosts.length;
+        final reel = _likedReels[reelIndex];
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: reel.thumbnailUrl.isNotEmpty
+                    ? reel.thumbnailUrl
+                    : 'https://picsum.photos/200/300?random=${reel.reelId.hashCode}',
+                fit: BoxFit.cover,
+                placeholder: (c, u) => Container(
+                  color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                ),
+              ),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(100),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 14),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

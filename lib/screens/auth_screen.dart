@@ -162,7 +162,29 @@ class _AuthScreenState extends State<AuthScreen>
     HapticFeedback.lightImpact();
     setState(() => _googleLoading = true);
     try {
-      await _authService.signInWithGoogle();
+      final cred = await _authService.signInWithGoogle();
+
+      // Save account for multi-account switching
+      final uid = cred.user?.uid ?? '';
+      final email = cred.user?.email ?? '';
+      if (uid.isNotEmpty && email.isNotEmpty) {
+        // Store with a generated token so switchAccount can re-auth via Google
+        await _accountManager.saveAccount(
+          uid: uid,
+          email: email,
+          password: '__google__',
+          displayName: cred.user?.displayName ?? '',
+          profilePicUrl: cred.user?.photoURL ?? '',
+        );
+        _accountManager.updateAccountInfo(uid);
+      }
+
+      // If adding account, just pop back to account switcher
+      if (widget.isAddAccount) {
+        if (mounted) Navigator.pop(context);
+        return;
+      }
+
       await _navigateAfterAuth();
     } catch (e) {
       if (mounted) {

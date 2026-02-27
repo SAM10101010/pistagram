@@ -123,9 +123,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         IconData icon;
         switch (notif.type) {
           case 'follow': icon = Icons.person_add; break;
+          case 'follow_request': icon = Icons.person_add_alt_1; break;
           case 'like': icon = Icons.favorite; break;
           case 'comment': icon = Icons.chat_bubble; break;
+          case 'message': icon = Icons.mail_rounded; break;
           case 'points': icon = Icons.stars; break;
+          case 'reward': icon = Icons.card_giftcard; break;
           case 'tag': icon = Icons.person_pin; break;
           default: icon = Icons.notifications;
         }
@@ -133,9 +136,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         Color iconAccent;
         switch (notif.type) {
           case 'follow': iconAccent = Colors.blue; break;
+          case 'follow_request': iconAccent = Colors.teal; break;
           case 'like': iconAccent = Colors.pinkAccent; break;
           case 'comment': iconAccent = Colors.green; break;
+          case 'message': iconAccent = Colors.deepPurple; break;
           case 'points': iconAccent = const Color(0xFFFFD700); break;
+          case 'reward': iconAccent = Colors.amber; break;
           case 'tag': iconAccent = Colors.orange; break;
           default: iconAccent = accent;
         }
@@ -233,6 +239,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         padding: const EdgeInsets.only(left: 8),
                         child: _buildFollowBackButton(notif.fromUid, accent),
                       ),
+                    if (notif.type == 'follow_request')
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _buildFollowRequestButtons(notif, accent, isDark),
+                      ),
                     if (!notif.read)
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
@@ -278,6 +289,54 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         child: Text('Follow', style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
       ),
+    );
+  }
+
+  Widget _buildFollowRequestButtons(NotificationModel notif, Color accent, bool isDark) {
+    final subColor = isDark ? Colors.white54 : Colors.black54;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 30,
+          child: ElevatedButton(
+            onPressed: () async {
+              final uid = _auth.currentUser?.uid ?? '';
+              await _followService.acceptRequest(notif.fromUid, uid);
+              await _firestore.markNotificationRead(notif.id);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: const Text('Request accepted'), behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 1)),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text('Accept', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          ),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          height: 30,
+          child: OutlinedButton(
+            onPressed: () async {
+              final uid = _auth.currentUser?.uid ?? '';
+              await _followService.rejectRequest(notif.fromUid, uid);
+              await _firestore.markNotificationRead(notif.id);
+            },
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: subColor.withAlpha(80)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            child: Text('Reject', style: GoogleFonts.inter(fontSize: 11, color: subColor)),
+          ),
+        ),
+      ],
     );
   }
 

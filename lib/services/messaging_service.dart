@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 import '../models/message_model.dart';
+import '../models/notification_model.dart';
 import '../models/user_model.dart';
 import 'firestore_service.dart';
 
@@ -44,6 +45,24 @@ class MessagingService {
       mediaUrl: mediaUrl,
     );
     await _firestoreService.sendMessage(message);
+
+    // Create notification for the receiver (use stable ID per chat to avoid spam)
+    final chat = await _firestoreService.getChat(chatId);
+    if (chat != null) {
+      final receiverUid = chat.participants.firstWhere(
+        (p) => p != senderUid,
+        orElse: () => '',
+      );
+      if (receiverUid.isNotEmpty) {
+        await _firestoreService.addNotification(NotificationModel(
+          id: 'msg_${chatId}_$senderUid',
+          toUid: receiverUid,
+          fromUid: senderUid,
+          type: 'message',
+          message: 'sent you a message',
+        ));
+      }
+    }
   }
 
   Stream<List<MessageModel>> getMessages(String chatId) {

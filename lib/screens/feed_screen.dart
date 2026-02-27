@@ -221,7 +221,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
       await _firestore.unlikeReel(uid, reel.reelId);
       _likedReelIds.remove(reel.reelId);
     } else {
-      await _firestore.likeReel(uid, reel.reelId);
+      await _firestore.likeReel(uid, reel.reelId, creatorUid: reel.creatorUid);
       _likedReelIds.add(reel.reelId);
     }
     CacheService.instance.setData('likedReelIds_$uid', _likedReelIds.toList());
@@ -249,7 +249,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
       await _firestore.unlikePost(uid, post.postId);
       _likedPostIds.remove(post.postId);
     } else {
-      await _firestore.likePost(uid, post.postId);
+      await _firestore.likePost(uid, post.postId, creatorUid: post.creatorUid);
       _likedPostIds.add(post.postId);
     }
     CacheService.instance.setData('likedPostIds_$uid', _likedPostIds.toList());
@@ -619,14 +619,11 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
     final uid = _auth.currentUser?.uid ?? '';
     final hasOwnStory = _ownStories.isNotEmpty;
 
-    // Build ordered list: users with stories first, then others
+    // Build list: only users who have active stories
     final storyUsersList = <UserModel>[];
-    final nonStoryUsers = <UserModel>[];
     for (final u in _followingUsers) {
       if (_usersWithStories.contains(u.uid)) {
         storyUsersList.add(u);
-      } else {
-        nonStoryUsers.add(u);
       }
     }
     // Also add users with stories that aren't in _followingUsers
@@ -635,7 +632,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
         storyUsersList.add(_userCache[suid]!);
       }
     }
-    final orderedUsers = [...storyUsersList, ...nonStoryUsers];
+    final orderedUsers = storyUsersList;
 
     return SizedBox(
       height: 100,
@@ -1006,7 +1003,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(width: 16),
                 ScaleTap(
-                  onTap: () => _showComments(context, reel.reelId, false),
+                  onTap: () => _showComments(context, reel.reelId, false, creatorUid: reel.creatorUid),
                   child: Icon(
                     Icons.chat_bubble_outline,
                     color: textColor,
@@ -1085,7 +1082,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: GestureDetector(
-              onTap: () => _showComments(context, reel.reelId, false),
+              onTap: () => _showComments(context, reel.reelId, false, creatorUid: reel.creatorUid),
               child: Text(
                 'View all ${reel.commentsCount} comments',
                 style: GoogleFonts.inter(fontSize: 12, color: subColor),
@@ -1476,12 +1473,12 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
     );
   }
 
-  void _showComments(BuildContext context, String contentId, bool isPost) {
+  void _showComments(BuildContext context, String contentId, bool isPost, {String? creatorUid}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => CommentsScreen(reelId: contentId, isPost: isPost),
+      builder: (_) => CommentsScreen(reelId: contentId, isPost: isPost, creatorUid: creatorUid),
     );
   }
 

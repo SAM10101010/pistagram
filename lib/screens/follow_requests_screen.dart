@@ -54,7 +54,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
 
   Future<void> _accept(String requesterUid) async {
     final uid = _auth.currentUser?.uid ?? '';
-    await _followService.acceptRequest(uid, requesterUid);
+    await _followService.acceptRequest(requesterUid, uid);
     if (mounted) {
       setState(() {
         _requesters.removeWhere((u) => u.uid == requesterUid);
@@ -71,7 +71,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
 
   Future<void> _reject(String requesterUid) async {
     final uid = _auth.currentUser?.uid ?? '';
-    await _followService.rejectRequest(uid, requesterUid);
+    await _followService.rejectRequest(requesterUid, uid);
     if (mounted) {
       setState(() {
         _requesters.removeWhere((u) => u.uid == requesterUid);

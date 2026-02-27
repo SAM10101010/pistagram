@@ -82,7 +82,7 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
     if (_isLiked) {
       await _firestore.unlikeReel(uid, _reel!.reelId);
     } else {
-      await _firestore.likeReel(uid, _reel!.reelId);
+      await _firestore.likeReel(uid, _reel!.reelId, creatorUid: _reel!.creatorUid);
     }
     if (mounted) setState(() => _isLiked = !_isLiked);
   }
@@ -283,7 +283,7 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
                               Text(_formatCount(_reel!.likesCount + (_isLiked ? 1 : 0)), style: GoogleFonts.inter(fontSize: 13, color: textColor)),
                             const SizedBox(width: 20),
                             GestureDetector(
-                              onTap: () => showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => CommentsScreen(reelId: _reel!.reelId)),
+                              onTap: () => showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => CommentsScreen(reelId: _reel!.reelId, creatorUid: _reel!.creatorUid)),
                               child: Icon(Icons.chat_bubble_outline, color: textColor, size: 24),
                             ),
                             const SizedBox(width: 6),

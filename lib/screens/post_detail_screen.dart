@@ -46,7 +46,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       await _firestore.unlikePost(uid, widget.post.postId);
       _likesCount--;
     } else {
-      await _firestore.likePost(uid, widget.post.postId);
+      await _firestore.likePost(uid, widget.post.postId, creatorUid: widget.post.creatorUid);
       _likesCount++;
     }
     _isLiked = !_isLiked;
@@ -323,7 +323,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       context: context,
                       isScrollControlled: true,
                       backgroundColor: Colors.transparent,
-                      builder: (_) => CommentsScreen(reelId: post.postId, isPost: true),
+                      builder: (_) => CommentsScreen(reelId: post.postId, isPost: true, creatorUid: post.creatorUid),
                     ),
                     child: Icon(Icons.chat_bubble_outline, color: textColor, size: 26),
                   ),
@@ -387,7 +387,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (_) => CommentsScreen(reelId: post.postId, isPost: true),
+                    builder: (_) => CommentsScreen(reelId: post.postId, isPost: true, creatorUid: post.creatorUid),
                   ),
                   child: Text(
                     post.commentsCount > 0
