@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
@@ -8,6 +9,9 @@ import '../models/user_model.dart';
 import '../models/story_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/cache_service.dart';
+import '../utils/animations.dart';
+import '../widgets/rotating_story_ring.dart';
 import 'explore_screen.dart';
 import 'notifications_screen.dart';
 import 'messages_screen.dart';
@@ -23,7 +27,7 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final _auth = AuthService();
   final _firestore = FirestoreService();
 
@@ -33,17 +37,21 @@ class _FeedScreenState extends State<FeedScreen> {
   List<PostModel> _forYouPosts = [];
   List<PostModel> _followingPosts = [];
   List<UserModel> _followingUsers = [];
-  Map<String, UserModel> _userCache = {};
+  final Map<String, UserModel> _userCache = {};
   final Set<String> _likedReelIds = {};
   final Set<String> _savedReelIds = {};
   final Set<String> _likedPostIds = {};
+  final Set<String> _savedPostIds = {};
   // Stories
   List<StoryModel> _ownStories = [];
-  Map<String, List<StoryModel>> _userStories = {}; // uid -> stories
+  final Map<String, List<StoryModel>> _userStories = {}; // uid -> stories
   List<String> _usersWithStories = []; // uids that have active stories
   // Track double-tap like animation
   String? _doubleTapId;
   bool _loading = true;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -54,6 +62,17 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _loadFeed() async {
     try {
       final uid = _auth.currentUser?.uid ?? '';
+
+      // Restore cached liked/saved IDs for instant display
+      final cache = CacheService.instance;
+      final cachedLikedPosts = cache.getData<List>('likedPostIds_$uid');
+      if (cachedLikedPosts != null) _likedPostIds.addAll(cachedLikedPosts.cast<String>());
+      final cachedSavedPosts = cache.getData<List>('savedPostIds_$uid');
+      if (cachedSavedPosts != null) _savedPostIds.addAll(cachedSavedPosts.cast<String>());
+      final cachedLikedReels = cache.getData<List>('likedReelIds_$uid');
+      if (cachedLikedReels != null) _likedReelIds.addAll(cachedLikedReels.cast<String>());
+      final cachedSavedReels = cache.getData<List>('savedReelIds_$uid');
+      if (cachedSavedReels != null) _savedReelIds.addAll(cachedSavedReels.cast<String>());
 
       // Cache own user profile
       if (!_userCache.containsKey(uid)) {
@@ -74,8 +93,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
       // Filter out posts/reels from private accounts
       final creatorUids = <String>{};
-      for (final r in publicReels) creatorUids.add(r.creatorUid);
-      for (final p in publicPosts) creatorUids.add(p.creatorUid);
+      for (final r in publicReels) { creatorUids.add(r.creatorUid); }
+      for (final p in publicPosts) { creatorUids.add(p.creatorUid); }
 
       // Batch fetch all creators for privacy check + cache
       await Future.wait(creatorUids.map((cuid) async {
@@ -111,8 +130,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
         // Cache following creators
         final followCreatorUids = <String>{};
-        for (final r in _followingReels) followCreatorUids.add(r.creatorUid);
-        for (final p in _followingPosts) followCreatorUids.add(p.creatorUid);
+        for (final r in _followingReels) { followCreatorUids.add(r.creatorUid); }
+        for (final p in _followingPosts) { followCreatorUids.add(p.creatorUid); }
         await Future.wait(followCreatorUids.map((cuid) async {
           if (!_userCache.containsKey(cuid)) {
             final u = await _firestore.getUser(cuid);
@@ -135,11 +154,11 @@ class _FeedScreenState extends State<FeedScreen> {
       final storyResults = await Future.wait([
         _firestore.getActiveStories(uid),
         followingUids.isNotEmpty
-            ? _firestore.getFollowingStories(followingUids)
+            ? _firestore.getFollowingStories(followingUids, currentUid: uid)
             : Future.value(<StoryModel>[]),
       ]);
-      _ownStories = storyResults[0] as List<StoryModel>;
-      final followingStories = storyResults[1] as List<StoryModel>;
+      _ownStories = storyResults[0];
+      final followingStories = storyResults[1];
 
       // Group following stories by creator
       _userStories.clear();
@@ -178,8 +197,17 @@ class _FeedScreenState extends State<FeedScreen> {
         likeCheckFutures.add(_firestore.hasLikedPost(uid, post.postId).then((liked) {
           if (liked) _likedPostIds.add(post.postId);
         }));
+        likeCheckFutures.add(_firestore.hasSavedPost(uid, post.postId).then((saved) {
+          if (saved) _savedPostIds.add(post.postId);
+        }));
       }
       await Future.wait(likeCheckFutures);
+
+      // Persist liked/saved IDs to cache
+      cache.setData('likedPostIds_$uid', _likedPostIds.toList());
+      cache.setData('savedPostIds_$uid', _savedPostIds.toList());
+      cache.setData('likedReelIds_$uid', _likedReelIds.toList());
+      cache.setData('savedReelIds_$uid', _savedReelIds.toList());
     } catch (e) {
       debugPrint('Feed load error: $e');
     }
@@ -187,6 +215,7 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _toggleLike(ReelModel reel) async {
+    HapticFeedback.lightImpact();
     final uid = _auth.currentUser?.uid ?? '';
     if (_likedReelIds.contains(reel.reelId)) {
       await _firestore.unlikeReel(uid, reel.reelId);
@@ -195,10 +224,12 @@ class _FeedScreenState extends State<FeedScreen> {
       await _firestore.likeReel(uid, reel.reelId);
       _likedReelIds.add(reel.reelId);
     }
+    CacheService.instance.setData('likedReelIds_$uid', _likedReelIds.toList());
     setState(() {});
   }
 
   Future<void> _toggleSave(ReelModel reel) async {
+    HapticFeedback.lightImpact();
     final uid = _auth.currentUser?.uid ?? '';
     if (_savedReelIds.contains(reel.reelId)) {
       await _firestore.unsaveReel(uid, reel.reelId);
@@ -207,10 +238,12 @@ class _FeedScreenState extends State<FeedScreen> {
       await _firestore.saveReel(uid, reel.reelId);
       _savedReelIds.add(reel.reelId);
     }
+    CacheService.instance.setData('savedReelIds_$uid', _savedReelIds.toList());
     setState(() {});
   }
 
   Future<void> _toggleLikePost(PostModel post) async {
+    HapticFeedback.lightImpact();
     final uid = _auth.currentUser?.uid ?? '';
     if (_likedPostIds.contains(post.postId)) {
       await _firestore.unlikePost(uid, post.postId);
@@ -219,7 +252,37 @@ class _FeedScreenState extends State<FeedScreen> {
       await _firestore.likePost(uid, post.postId);
       _likedPostIds.add(post.postId);
     }
+    CacheService.instance.setData('likedPostIds_$uid', _likedPostIds.toList());
     setState(() {});
+  }
+
+  Future<void> _toggleSavePost(PostModel post) async {
+    final uid = _auth.currentUser?.uid ?? '';
+    final wasSaved = _savedPostIds.contains(post.postId);
+    // Optimistic update
+    if (wasSaved) {
+      _savedPostIds.remove(post.postId);
+    } else {
+      _savedPostIds.add(post.postId);
+    }
+    CacheService.instance.setData('savedPostIds_$uid', _savedPostIds.toList());
+    setState(() {});
+    try {
+      if (wasSaved) {
+        await _firestore.unsavePost(uid, post.postId);
+      } else {
+        await _firestore.savePost(uid, post.postId);
+      }
+    } catch (e) {
+      // Rollback on failure
+      if (wasSaved) {
+        _savedPostIds.add(post.postId);
+      } else {
+        _savedPostIds.remove(post.postId);
+      }
+      CacheService.instance.setData('savedPostIds_$uid', _savedPostIds.toList());
+      if (mounted) setState(() {});
+    }
   }
 
   void _onDoubleTapLikeReel(ReelModel reel) {
@@ -251,6 +314,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA);
@@ -266,8 +330,19 @@ class _FeedScreenState extends State<FeedScreen> {
             _buildTabBar(accent, isDark, textColor),
             Expanded(
               child: _loading
-                  ? Center(child: CircularProgressIndicator(color: accent))
-                  : RefreshIndicator(
+                  ? _buildShimmerLoading(isDark)
+                  : GestureDetector(
+                      onHorizontalDragEnd: (details) {
+                        if (details.primaryVelocity == null) return;
+                        if (details.primaryVelocity! < -300 && _selectedTab == 0) {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedTab = 1);
+                        } else if (details.primaryVelocity! > 300 && _selectedTab == 1) {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedTab = 0);
+                        }
+                      },
+                      child: RefreshIndicator(
                       color: accent,
                       onRefresh: () async {
                         setState(() => _loading = true);
@@ -280,6 +355,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         _likedReelIds.clear();
                         _savedReelIds.clear();
                         _likedPostIds.clear();
+                        _savedPostIds.clear();
                         _ownStories.clear();
                         _userStories.clear();
                         _usersWithStories.clear();
@@ -290,6 +366,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         isDark,
                         textColor,
                         subColor,
+                      ),
                       ),
                     ),
             ),
@@ -393,79 +470,91 @@ class _FeedScreenState extends State<FeedScreen> {
         }
         final offset = 1 + (showFollowBanner ? 1 : 0);
         final item = items[i - offset];
+        final itemIndex = i - offset;
         if (item is PostModel) {
-          return _buildPhotoCard(item, accent, isDark, textColor, subColor);
+          return AnimatedListItem(
+            index: itemIndex,
+            child: _buildPhotoCard(item, accent, isDark, textColor, subColor),
+          );
         }
-        return _buildPostCard(
-          item as ReelModel,
-          accent,
-          isDark,
-          textColor,
-          subColor,
+        return AnimatedListItem(
+          index: itemIndex,
+          child: _buildPostCard(
+            item as ReelModel,
+            accent,
+            isDark,
+            textColor,
+            subColor,
+          ),
         );
       },
     );
   }
 
   Widget _buildTopBar(Color accent, bool isDark, Color textColor) {
-    return Padding(
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? Colors.white.withAlpha(8) : Colors.black.withAlpha(8),
+          ),
+        ),
+      ),
       child: Row(
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: accent, width: 2),
+          // App logo
+          ClipOval(
+            child: Image.asset(
+              'assets/logo.png',
+              width: 38,
+              height: 38,
+              fit: BoxFit.cover,
             ),
-            child: Icon(Icons.play_arrow_rounded, color: accent, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Pistagram',
+            style: GoogleFonts.outfit(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              foreground: Paint()
+                ..shader = LinearGradient(
+                  colors: [accent, accent.withAlpha(180)],
+                ).createShader(const Rect.fromLTWH(0, 0, 150, 30)),
+            ),
           ),
           const Spacer(),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ExploreScreen()),
-            ),
-            icon: Icon(Icons.explore_outlined, color: textColor, size: 26),
-          ),
+          _buildTopBarIcon(Icons.explore_outlined, textColor, () {
+            Navigator.push(context, SlideRightRoute(page: const ExploreScreen()));
+          }),
           Stack(
             children: [
-              IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                ),
-                icon: Icon(
-                  Icons.favorite_border_rounded,
-                  color: textColor,
-                  size: 26,
-                ),
-              ),
+              _buildTopBarIcon(Icons.favorite_border_rounded, textColor, () {
+                Navigator.push(context, SlideRightRoute(page: const NotificationsScreen()));
+              }),
               Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
+                right: 6,
+                top: 6,
+                child: PulsingDot(color: accent, size: 8),
               ),
             ],
           ),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MessagesScreen()),
-            ),
-            icon: Icon(Icons.send_outlined, color: textColor, size: 24),
-          ),
+          _buildTopBarIcon(Icons.send_outlined, textColor, () {
+            Navigator.push(context, SlideRightRoute(page: const MessagesScreen()));
+          }),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTopBarIcon(IconData icon, Color color, VoidCallback onTap) {
+    return ScaleTap(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Icon(icon, color: color, size: 26),
       ),
     );
   }
@@ -493,28 +582,35 @@ class _FeedScreenState extends State<FeedScreen> {
     final isActive = _selectedTab == index;
     return GestureDetector(
       onTap: () => setState(() => _selectedTab = index),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-              color: isActive
-                  ? textColor
-                  : (isDark ? Colors.white38 : Colors.black38),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          children: [
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 250),
+              style: GoogleFonts.inter(
+                fontSize: isActive ? 17 : 15,
+                fontWeight: isActive ? FontWeight.w800 : FontWeight.w400,
+                color: isActive
+                    ? textColor
+                    : (isDark ? Colors.white38 : Colors.black38),
+              ),
+              child: Text(label),
             ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            height: 2.5,
-            width: 50,
-            decoration: BoxDecoration(
-              color: isActive ? accent : Colors.transparent,
-              borderRadius: BorderRadius.circular(2),
+            const SizedBox(height: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              height: 3,
+              width: isActive ? 50 : 0,
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -550,18 +646,18 @@ class _FeedScreenState extends State<FeedScreen> {
         itemBuilder: (ctx, i) {
           if (i == 0) {
             // Own story item
+            final ownUser = _userCache[uid];
+            final hasProfilePic = ownUser != null && ownUser.profilePicUrl.isNotEmpty;
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: GestureDetector(
                 onTap: () {
                   if (hasOwnStory) {
-                    // View own story
-                    final ownUser = _userCache[uid];
                     if (ownUser != null) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => StoryViewerScreen(
+                        FadeScaleRoute(
+                          page: StoryViewerScreen(
                             stories: _ownStories,
                             creator: ownUser,
                           ),
@@ -569,41 +665,51 @@ class _FeedScreenState extends State<FeedScreen> {
                       );
                     }
                   } else {
-                    // Navigate to upload with story category
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const UploadScreen()),
+                      SlideUpRoute(page: const UploadScreen()),
                     );
                   }
                 },
                 child: Column(
                   children: [
-                    Container(
-                      width: 62,
-                      height: 62,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: hasOwnStory
-                            ? LinearGradient(colors: [accent, accent.withAlpha(150)])
-                            : null,
-                        border: hasOwnStory
-                            ? null
-                            : Border.all(
-                                color: isDark ? Colors.white24 : Colors.black12,
-                                width: 2,
+                    RotatingStoryRing(
+                      hasStory: hasOwnStory,
+                      size: 62,
+                      color: accent,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: isDark
+                                ? const Color(0xFF1A1A2E)
+                                : Colors.grey[200],
+                            backgroundImage: ownUser != null && ownUser.profilePicUrl.isNotEmpty
+                                ? CachedNetworkImageProvider(ownUser.profilePicUrl)
+                                : null,
+                            child: !hasProfilePic
+                                ? Icon(Icons.person, color: isDark ? Colors.white38 : Colors.black26, size: 22)
+                                : null,
+                          ),
+                          if (!hasOwnStory)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: accent,
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF0D0D0D) : Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(Icons.add, color: Colors.white, size: 12),
                               ),
-                      ),
-                      padding: hasOwnStory ? const EdgeInsets.all(2.5) : null,
-                      child: CircleAvatar(
-                        backgroundColor: isDark
-                            ? const Color(0xFF1A1A2E)
-                            : Colors.grey[200],
-                        backgroundImage: hasOwnStory && _userCache[uid] != null && _userCache[uid]!.profilePicUrl.isNotEmpty
-                            ? CachedNetworkImageProvider(_userCache[uid]!.profilePicUrl)
-                            : null,
-                        child: hasOwnStory
-                            ? null
-                            : Icon(Icons.add, color: accent, size: 22),
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -636,8 +742,8 @@ class _FeedScreenState extends State<FeedScreen> {
                 if (hasStory && stories != null && stories.isNotEmpty) {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => StoryViewerScreen(
+                    FadeScaleRoute(
+                      page: StoryViewerScreen(
                         stories: stories,
                         creator: user,
                       ),
@@ -646,31 +752,20 @@ class _FeedScreenState extends State<FeedScreen> {
                 } else {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => ProfileScreen(userId: user.uid),
+                    SlideRightRoute(
+                      page: ProfileScreen(userId: user.uid),
                     ),
                   );
                 }
               },
               child: Column(
                 children: [
-                  Container(
-                    width: 62,
-                    height: 62,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: hasStory
-                          ? LinearGradient(colors: [accent, accent.withAlpha(150)])
-                          : null,
-                      border: hasStory
-                          ? null
-                          : Border.all(
-                              color: isDark ? Colors.white24 : Colors.black12,
-                              width: 2,
-                            ),
-                    ),
-                    padding: const EdgeInsets.all(2.5),
+                  RotatingStoryRing(
+                    hasStory: hasStory,
+                    size: 62,
+                    color: accent,
                     child: CircleAvatar(
+                      radius: 28,
                       backgroundColor: isDark
                           ? const Color(0xFF1A1A2E)
                           : Colors.grey[200],
@@ -721,19 +816,26 @@ class _FeedScreenState extends State<FeedScreen> {
     final showHeart = _doubleTapId == reel.reelId;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      color: isDark ? const Color(0xFF0D0D0D) : Colors.white,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111111) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? Colors.white.withAlpha(8) : Colors.black.withAlpha(8),
+            width: 0.5,
+          ),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Post header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: GestureDetector(
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => ProfileScreen(userId: reel.creatorUid),
+                SlideRightRoute(
+                  page: ProfileScreen(userId: reel.creatorUid),
                 ),
               ),
               child: Row(
@@ -789,7 +891,7 @@ class _FeedScreenState extends State<FeedScreen> {
               ),
             ),
           ),
-          // Post image with double-tap to like
+          // Post image with double-tap to like + pinch-to-zoom
           GestureDetector(
             onDoubleTap: () => _onDoubleTapLikeReel(reel),
             child: Stack(
@@ -797,20 +899,59 @@ class _FeedScreenState extends State<FeedScreen> {
               children: [
                 AspectRatio(
                   aspectRatio: 1.0,
-                  child: CachedNetworkImage(
-                    imageUrl: reel.thumbnailUrl.isNotEmpty
-                        ? reel.thumbnailUrl
-                        : 'https://picsum.photos/800/800?random=${reel.reelId.hashCode}',
-                    fit: BoxFit.cover,
-                    placeholder: (c, u) => Container(
-                      color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: accent,
-                          strokeWidth: 2,
+                  child: InteractiveViewer(
+                    minScale: 1.0,
+                    maxScale: 3.0,
+                    clipBehavior: Clip.hardEdge,
+                    child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final imgWidget = CachedNetworkImage(
+                        imageUrl: reel.thumbnailUrl.isNotEmpty
+                            ? reel.thumbnailUrl
+                            : 'https://picsum.photos/800/800?random=${reel.reelId.hashCode}',
+                        fit: BoxFit.cover,
+                        width: constraints.maxWidth,
+                        height: constraints.maxHeight,
+                        placeholder: (c, u) => Container(
+                          color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                          child: Center(
+                            child: CircularProgressIndicator(color: accent, strokeWidth: 2),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                      final filter = _getFilterMatrix(reel.filter);
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (filter != null)
+                            ColorFiltered(colorFilter: filter, child: imgWidget)
+                          else
+                            imgWidget,
+                          if (reel.overlayText.isNotEmpty)
+                            Positioned(
+                              left: reel.textX * constraints.maxWidth,
+                              top: reel.textY * constraints.maxHeight,
+                              child: Text(
+                                reel.overlayText,
+                                style: TextStyle(
+                                  color: Color(int.parse(reel.textColor.replaceFirst('#', '0xFF'))),
+                                  fontSize: 16 * reel.textScale,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ...reel.stickers.map((s) => Positioned(
+                            left: (s['x'] as num).toDouble() * constraints.maxWidth,
+                            top: (s['y'] as num).toDouble() * constraints.maxHeight,
+                            child: Text(
+                              s['emoji'] as String? ?? '',
+                              style: TextStyle(fontSize: 32 * ((s['scale'] as num?)?.toDouble() ?? 1.0)),
+                            ),
+                          )),
+                        ],
+                      );
+                    },
+                  ),
                   ),
                 ),
                 if (showHeart)
@@ -827,21 +968,44 @@ class _FeedScreenState extends State<FeedScreen> {
               ],
             ),
           ),
+          // Music indicator for reels
+          if (reel.musicName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.music_note, color: subColor, size: 16),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      reel.musicName,
+                      style: GoogleFonts.inter(fontSize: 12, color: subColor),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Action buttons
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                GestureDetector(
+                ScaleTap(
                   onTap: () => _toggleLike(reel),
-                  child: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? accent : textColor,
-                    size: 26,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      isLiked ? Icons.favorite : Icons.favorite_border,
+                      key: ValueKey(isLiked),
+                      color: isLiked ? accent : textColor,
+                      size: 26,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                GestureDetector(
+                ScaleTap(
                   onTap: () => _showComments(context, reel.reelId, false),
                   child: Icon(
                     Icons.chat_bubble_outline,
@@ -850,17 +1014,22 @@ class _FeedScreenState extends State<FeedScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                GestureDetector(
+                ScaleTap(
                   onTap: () => _shareContent('reel', reel.reelId, reel.caption),
                   child: Icon(Icons.send_outlined, color: textColor, size: 24),
                 ),
                 const Spacer(),
-                GestureDetector(
+                ScaleTap(
                   onTap: () => _toggleSave(reel),
-                  child: Icon(
-                    isSaved ? Icons.bookmark : Icons.bookmark_border,
-                    color: isSaved ? accent : textColor,
-                    size: 26,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      isSaved ? Icons.bookmark : Icons.bookmark_border,
+                      key: ValueKey(isSaved),
+                      color: isSaved ? accent : textColor,
+                      size: 26,
+                    ),
                   ),
                 ),
               ],
@@ -869,14 +1038,23 @@ class _FeedScreenState extends State<FeedScreen> {
           // Likes count
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Text(
-              '${_formatCount(reel.likesCount)} likes',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
+            child: reel.hideLikes
+                ? Text(
+                    'Liked by others',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  )
+                : Text(
+                    '${_formatCount(reel.likesCount)} likes',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
           ),
           // Caption
           if (reel.caption.isNotEmpty)
@@ -897,7 +1075,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                     TextSpan(
                       text: reel.caption,
-                      style: GoogleFonts.inter(fontSize: 13, color: textColor),
+                      style: GoogleFonts.inter(fontSize: 13, color: textColor, height: 1.4),
                     ),
                   ],
                 ),
@@ -929,11 +1107,20 @@ class _FeedScreenState extends State<FeedScreen> {
   ) {
     final creator = _userCache[post.creatorUid];
     final isLiked = _likedPostIds.contains(post.postId);
+    final isSavedPost = _savedPostIds.contains(post.postId);
     final showHeart = _doubleTapId == post.postId;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      color: isDark ? const Color(0xFF0D0D0D) : Colors.white,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111111) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? Colors.white.withAlpha(8) : Colors.black.withAlpha(8),
+            width: 0.5,
+          ),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -943,8 +1130,8 @@ class _FeedScreenState extends State<FeedScreen> {
             child: GestureDetector(
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => ProfileScreen(userId: post.creatorUid),
+                SlideRightRoute(
+                  page: ProfileScreen(userId: post.creatorUid),
                 ),
               ),
               child: Row(
@@ -982,7 +1169,17 @@ class _FeedScreenState extends State<FeedScreen> {
                             color: textColor,
                           ),
                         ),
-                        if (post.caption.isNotEmpty)
+                        if (post.location.isNotEmpty)
+                          Text(
+                            post.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: subColor,
+                            ),
+                          )
+                        else if (post.caption.isNotEmpty)
                           Text(
                             post.caption,
                             maxLines: 1,
@@ -1000,7 +1197,7 @@ class _FeedScreenState extends State<FeedScreen> {
               ),
             ),
           ),
-          // Media with double-tap to like
+          // Media with double-tap to like + pinch-to-zoom
           if (post.mediaUrls.isNotEmpty)
             GestureDetector(
               onDoubleTap: () => _onDoubleTapLikePost(post),
@@ -1010,40 +1207,109 @@ class _FeedScreenState extends State<FeedScreen> {
                   post.mediaUrls.length == 1
                       ? AspectRatio(
                           aspectRatio: 1.0,
-                          child: CachedNetworkImage(
-                            imageUrl: post.mediaUrls[0],
-                            fit: BoxFit.cover,
-                            placeholder: (c, u) => Container(
-                              color: isDark
-                                  ? const Color(0xFF1A1A2E)
-                                  : Colors.grey[200],
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: accent,
-                                  strokeWidth: 2,
+                          child: InteractiveViewer(
+                            minScale: 1.0,
+                            maxScale: 3.0,
+                            clipBehavior: Clip.hardEdge,
+                            child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final imgWidget = CachedNetworkImage(
+                                imageUrl: post.mediaUrls[0],
+                                fit: BoxFit.cover,
+                                width: constraints.maxWidth,
+                                height: constraints.maxHeight,
+                                placeholder: (c, u) => Container(
+                                  color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                                  child: Center(
+                                    child: CircularProgressIndicator(color: accent, strokeWidth: 2),
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                              final filter = _getFilterMatrix(post.filter);
+                              return Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (filter != null)
+                                    ColorFiltered(colorFilter: filter, child: imgWidget)
+                                  else
+                                    imgWidget,
+                                  if (post.overlayText.isNotEmpty)
+                                    Positioned(
+                                      left: post.textX * constraints.maxWidth,
+                                      top: post.textY * constraints.maxHeight,
+                                      child: Text(
+                                        post.overlayText,
+                                        style: TextStyle(
+                                          color: Color(int.parse(post.textColor.replaceFirst('#', '0xFF'))),
+                                          fontSize: 16 * post.textScale,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ...post.stickers.map((s) => Positioned(
+                                    left: (s['x'] as num).toDouble() * constraints.maxWidth,
+                                    top: (s['y'] as num).toDouble() * constraints.maxHeight,
+                                    child: Text(
+                                      s['emoji'] as String? ?? '',
+                                      style: TextStyle(fontSize: 32 * ((s['scale'] as num?)?.toDouble() ?? 1.0)),
+                                    ),
+                                  )),
+                                ],
+                              );
+                            },
+                          ),
                           ),
                         )
                       : AspectRatio(
                           aspectRatio: 1.0,
                           child: PageView.builder(
                             itemCount: post.mediaUrls.length,
-                            itemBuilder: (ctx, idx) => CachedNetworkImage(
-                              imageUrl: post.mediaUrls[idx],
-                              fit: BoxFit.cover,
-                              placeholder: (c, u) => Container(
-                                color: isDark
-                                    ? const Color(0xFF1A1A2E)
-                                    : Colors.grey[200],
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    color: accent,
-                                    strokeWidth: 2,
+                            itemBuilder: (ctx, idx) => LayoutBuilder(
+                              builder: (context, constraints) {
+                                final imgWidget = CachedNetworkImage(
+                                  imageUrl: post.mediaUrls[idx],
+                                  fit: BoxFit.cover,
+                                  width: constraints.maxWidth,
+                                  height: constraints.maxHeight,
+                                  placeholder: (c, u) => Container(
+                                    color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                                    child: Center(
+                                      child: CircularProgressIndicator(color: accent, strokeWidth: 2),
+                                    ),
                                   ),
-                                ),
-                              ),
+                                );
+                                final filter = _getFilterMatrix(post.filter);
+                                return Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    if (filter != null)
+                                      ColorFiltered(colorFilter: filter, child: imgWidget)
+                                    else
+                                      imgWidget,
+                                    if (post.overlayText.isNotEmpty)
+                                      Positioned(
+                                        left: post.textX * constraints.maxWidth,
+                                        top: post.textY * constraints.maxHeight,
+                                        child: Text(
+                                          post.overlayText,
+                                          style: TextStyle(
+                                            color: Color(int.parse(post.textColor.replaceFirst('#', '0xFF'))),
+                                            fontSize: 16 * post.textScale,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ...post.stickers.map((s) => Positioned(
+                                      left: (s['x'] as num).toDouble() * constraints.maxWidth,
+                                      top: (s['y'] as num).toDouble() * constraints.maxHeight,
+                                      child: Text(
+                                        s['emoji'] as String? ?? '',
+                                        style: TextStyle(fontSize: 32 * ((s['scale'] as num?)?.toDouble() ?? 1.0)),
+                                      ),
+                                    )),
+                                  ],
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -1061,47 +1327,111 @@ class _FeedScreenState extends State<FeedScreen> {
                 ],
               ),
             ),
+          // Music indicator for posts
+          if (post.musicName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.music_note, color: subColor, size: 16),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      post.musicName,
+                      style: GoogleFonts.inter(fontSize: 12, color: subColor),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // Tagged users indicator
+          if (post.taggedUsers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.person_pin_outlined, color: subColor, size: 18),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${post.taggedUsers.length} ${post.taggedUsers.length == 1 ? 'person' : 'people'} tagged',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: subColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Action buttons
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                GestureDetector(
+                ScaleTap(
                   onTap: () => _toggleLikePost(post),
-                  child: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? accent : textColor,
-                    size: 26,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      isLiked ? Icons.favorite : Icons.favorite_border,
+                      key: ValueKey(isLiked),
+                      color: isLiked ? accent : textColor,
+                      size: 26,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                GestureDetector(
+                ScaleTap(
                   onTap: () => _showComments(context, post.postId, true),
                   child: Icon(Icons.chat_bubble_outline, color: textColor, size: 24),
                 ),
                 const SizedBox(width: 16),
-                GestureDetector(
+                ScaleTap(
                   onTap: () => _shareContent('post', post.postId, post.caption),
                   child: Icon(Icons.send_outlined, color: textColor, size: 24),
                 ),
+                const Spacer(),
                 if (post.mediaUrls.length > 1) ...[
-                  const Spacer(),
                   Icon(Icons.circle, color: accent, size: 8),
+                  const SizedBox(width: 16),
                 ],
+                ScaleTap(
+                  onTap: () => _toggleSavePost(post),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      isSavedPost ? Icons.bookmark : Icons.bookmark_border,
+                      key: ValueKey(isSavedPost),
+                      color: isSavedPost ? accent : textColor,
+                      size: 26,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           // Likes count
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Text(
-              '${_formatCount(post.likesCount)} likes',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
+            child: post.hideLikes
+                ? Text(
+                    'Liked by others',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  )
+                : Text(
+                    '${_formatCount(post.likesCount)} likes',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
           ),
           // Caption
           if (post.caption.isNotEmpty)
@@ -1122,14 +1452,14 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                     TextSpan(
                       text: post.caption,
-                      style: GoogleFonts.inter(fontSize: 13, color: textColor),
+                      style: GoogleFonts.inter(fontSize: 13, color: textColor, height: 1.4),
                     ),
                   ],
                 ),
               ),
             ),
           // View comments
-          if (post.commentsCount > 0)
+          if (post.commentsCount > 0 && !post.hideComments)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: GestureDetector(
@@ -1159,5 +1489,41 @@ class _FeedScreenState extends State<FeedScreen> {
     if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
     if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
     return count.toString();
+  }
+
+  ColorFilter? _getFilterMatrix(String filter) {
+    switch (filter) {
+      case 'warm': return const ColorFilter.matrix([1.2,0.1,0,0,10, 0,1.0,0,0,0, 0,0,0.8,0,0, 0,0,0,1,0]);
+      case 'cool': return const ColorFilter.matrix([0.8,0,0,0,0, 0,1.0,0.1,0,10, 0,0,1.2,0,10, 0,0,0,1,0]);
+      case 'sepia': return const ColorFilter.matrix([0.393,0.769,0.189,0,0, 0.349,0.686,0.168,0,0, 0.272,0.534,0.131,0,0, 0,0,0,1,0]);
+      case 'grayscale': return const ColorFilter.matrix([0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0,0,0,1,0]);
+      case 'vibrant': return const ColorFilter.matrix([1.3,0,0,0,0, 0,1.3,0,0,0, 0,0,1.3,0,0, 0,0,0,1,0]);
+      case 'fade': return const ColorFilter.matrix([1,0,0,0,30, 0,1,0,0,30, 0,0,1,0,30, 0,0,0,0.9,0]);
+      case 'noir': return const ColorFilter.matrix([0.3,0.6,0.1,0,-20, 0.3,0.6,0.1,0,-20, 0.3,0.6,0.1,0,-20, 0,0,0,1,0]);
+      default: return null;
+    }
+  }
+
+  Widget _buildShimmerLoading(bool isDark) {
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        // Shimmer stories row
+        SizedBox(
+          height: 100,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            children: List.generate(6, (_) => const ShimmerStoryCircle()),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Shimmer post cards
+        ...List.generate(3, (i) => FadeInSlide(
+          delay: i * 100,
+          child: const ShimmerPostCard(),
+        )),
+      ],
+    );
   }
 }

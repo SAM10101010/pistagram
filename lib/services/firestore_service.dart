@@ -16,21 +16,36 @@ class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // ── Collection References ──
-  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
-  CollectionReference<Map<String, dynamic>> get _reels => _db.collection('reels');
-  CollectionReference<Map<String, dynamic>> get _follows => _db.collection('follows');
-  CollectionReference<Map<String, dynamic>> get _transactions => _db.collection('transactions');
-  CollectionReference<Map<String, dynamic>> get _notifications => _db.collection('notifications');
-  CollectionReference<Map<String, dynamic>> get _comments => _db.collection('comments');
-  CollectionReference<Map<String, dynamic>> get _chats => _db.collection('chats');
-  CollectionReference<Map<String, dynamic>> get _rewards => _db.collection('rewards');
-  CollectionReference<Map<String, dynamic>> get _redemptions => _db.collection('redemptions');
-  CollectionReference<Map<String, dynamic>> get _reports => _db.collection('reports');
-  CollectionReference<Map<String, dynamic>> get _blocks => _db.collection('blocks');
-  CollectionReference<Map<String, dynamic>> get _likes => _db.collection('likes');
-  CollectionReference<Map<String, dynamic>> get _saves => _db.collection('saves');
-  CollectionReference<Map<String, dynamic>> get _posts => _db.collection('posts');
-  CollectionReference<Map<String, dynamic>> get _stories => _db.collection('stories');
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _reels =>
+      _db.collection('reels');
+  CollectionReference<Map<String, dynamic>> get _follows =>
+      _db.collection('follows');
+  CollectionReference<Map<String, dynamic>> get _transactions =>
+      _db.collection('transactions');
+  CollectionReference<Map<String, dynamic>> get _notifications =>
+      _db.collection('notifications');
+  CollectionReference<Map<String, dynamic>> get _comments =>
+      _db.collection('comments');
+  CollectionReference<Map<String, dynamic>> get _chats =>
+      _db.collection('chats');
+  CollectionReference<Map<String, dynamic>> get _rewards =>
+      _db.collection('rewards');
+  CollectionReference<Map<String, dynamic>> get _redemptions =>
+      _db.collection('redemptions');
+  CollectionReference<Map<String, dynamic>> get _reports =>
+      _db.collection('reports');
+  CollectionReference<Map<String, dynamic>> get _blocks =>
+      _db.collection('blocks');
+  CollectionReference<Map<String, dynamic>> get _likes =>
+      _db.collection('likes');
+  CollectionReference<Map<String, dynamic>> get _saves =>
+      _db.collection('saves');
+  CollectionReference<Map<String, dynamic>> get _posts =>
+      _db.collection('posts');
+  CollectionReference<Map<String, dynamic>> get _stories =>
+      _db.collection('stories');
 
   // ═══════════════════════════════════════
   // USERS
@@ -107,12 +122,20 @@ class FirestoreService {
     return snap.docs.map((d) => ReelModel.fromMap(d.data())).toList();
   }
 
-  Future<List<ReelModel>> getFeedReels(List<String> followingUids, {int limit = 20}) async {
+  Future<List<ReelModel>> getFeedReels(
+    List<String> followingUids, {
+    int limit = 20,
+  }) async {
     if (followingUids.isEmpty) return [];
     // Firestore whereIn limit is 30
     final chunks = <List<String>>[];
     for (var i = 0; i < followingUids.length; i += 30) {
-      chunks.add(followingUids.sublist(i, i + 30 > followingUids.length ? followingUids.length : i + 30));
+      chunks.add(
+        followingUids.sublist(
+          i,
+          i + 30 > followingUids.length ? followingUids.length : i + 30,
+        ),
+      );
     }
     final allReels = <ReelModel>[];
     for (final chunk in chunks) {
@@ -138,7 +161,10 @@ class FirestoreService {
     return snap.docs.map((d) => ReelModel.fromMap(d.data())).toList();
   }
 
-  Future<List<ReelModel>> getReelsByHashtag(String hashtag, {int limit = 20}) async {
+  Future<List<ReelModel>> getReelsByHashtag(
+    String hashtag, {
+    int limit = 20,
+  }) async {
     final snap = await _reels
         .where('hashtags', arrayContains: hashtag.toLowerCase())
         .where('isActive', isEqualTo: true)
@@ -166,7 +192,11 @@ class FirestoreService {
     return FollowModel.fromMap(doc.data()!);
   }
 
-  Future<void> updateFollowStatus(String followerId, String followingId, String status) async {
+  Future<void> updateFollowStatus(
+    String followerId,
+    String followingId,
+    String status,
+  ) async {
     await _follows.doc('${followerId}_$followingId').update({'status': status});
   }
 
@@ -273,28 +303,36 @@ class FirestoreService {
   Future<void> addComment(CommentModel comment) async {
     final batch = _db.batch();
     batch.set(_comments.doc(comment.id), comment.toMap());
-    batch.update(_reels.doc(comment.reelId), {'commentsCount': FieldValue.increment(1)});
+    batch.update(_reels.doc(comment.reelId), {
+      'commentsCount': FieldValue.increment(1),
+    });
     await batch.commit();
   }
 
   Future<void> addPostComment(CommentModel comment) async {
     final batch = _db.batch();
     batch.set(_comments.doc(comment.id), comment.toMap());
-    batch.update(_posts.doc(comment.reelId), {'commentsCount': FieldValue.increment(1)});
+    batch.update(_posts.doc(comment.reelId), {
+      'commentsCount': FieldValue.increment(1),
+    });
     await batch.commit();
   }
 
   Future<void> deleteComment(String commentId, String reelId) async {
     final batch = _db.batch();
     batch.delete(_comments.doc(commentId));
-    batch.update(_reels.doc(reelId), {'commentsCount': FieldValue.increment(-1)});
+    batch.update(_reels.doc(reelId), {
+      'commentsCount': FieldValue.increment(-1),
+    });
     await batch.commit();
   }
 
   Future<void> deletePostComment(String commentId, String postId) async {
     final batch = _db.batch();
     batch.delete(_comments.doc(commentId));
-    batch.update(_posts.doc(postId), {'commentsCount': FieldValue.increment(-1)});
+    batch.update(_posts.doc(postId), {
+      'commentsCount': FieldValue.increment(-1),
+    });
     await batch.commit();
   }
 
@@ -304,7 +342,10 @@ class FirestoreService {
         .where('parentId', isEqualTo: '')
         .orderBy('createdAt', descending: false)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => CommentModel.fromMap(d.data())).toList());
+        .map(
+          (snap) =>
+              snap.docs.map((d) => CommentModel.fromMap(d.data())).toList(),
+        );
   }
 
   Stream<List<CommentModel>> getReplies(String parentId) {
@@ -312,7 +353,10 @@ class FirestoreService {
         .where('parentId', isEqualTo: parentId)
         .orderBy('createdAt', descending: false)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => CommentModel.fromMap(d.data())).toList());
+        .map(
+          (snap) =>
+              snap.docs.map((d) => CommentModel.fromMap(d.data())).toList(),
+        );
   }
 
   // ═══════════════════════════════════════
@@ -322,7 +366,10 @@ class FirestoreService {
     await _transactions.doc(txn.id).set(txn.toMap());
   }
 
-  Future<List<TransactionModel>> getUserTransactions(String uid, {int limit = 50}) async {
+  Future<List<TransactionModel>> getUserTransactions(
+    String uid, {
+    int limit = 50,
+  }) async {
     final snap = await _transactions
         .where('uid', isEqualTo: uid)
         .orderBy('createdAt', descending: true)
@@ -360,7 +407,11 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => NotificationModel.fromMap(d.data())).toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => NotificationModel.fromMap(d.data()))
+              .toList(),
+        );
   }
 
   Stream<int> getUnreadNotificationCount(String uid) {
@@ -406,7 +457,10 @@ class FirestoreService {
         .collection('messages')
         .orderBy('createdAt', descending: false)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => MessageModel.fromMap(d.data())).toList());
+        .map(
+          (snap) =>
+              snap.docs.map((d) => MessageModel.fromMap(d.data())).toList(),
+        );
   }
 
   Stream<List<ChatModel>> getUserChats(String uid) {
@@ -414,7 +468,9 @@ class FirestoreService {
         .where('participants', arrayContains: uid)
         .orderBy('lastMessageAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => ChatModel.fromMap(d.data())).toList());
+        .map(
+          (snap) => snap.docs.map((d) => ChatModel.fromMap(d.data())).toList(),
+        );
   }
 
   // ═══════════════════════════════════════
@@ -527,7 +583,17 @@ class FirestoreService {
   }
 
   Future<void> incrementViews(String reelId) async {
-    await _reels.doc(reelId).update({'viewsCount': FieldValue.increment(1)});
+    final reel = await getReel(reelId);
+    if (reel == null) return;
+    final batch = _db.batch();
+    batch.update(_reels.doc(reelId), {'viewsCount': FieldValue.increment(1)});
+    // Auto-disable limited reels when view cap is reached
+    if (reel.isLimited &&
+        reel.maxViews > 0 &&
+        reel.viewsCount + 1 >= reel.maxViews) {
+      batch.update(_reels.doc(reelId), {'isActive': false});
+    }
+    await batch.commit();
   }
 
   Future<void> incrementTotalLikes(String uid) async {
@@ -539,7 +605,9 @@ class FirestoreService {
   }
 
   Future<void> updatePointsBalance(String uid, int points) async {
-    await _users.doc(uid).update({'pointsBalance': FieldValue.increment(points)});
+    await _users.doc(uid).update({
+      'pointsBalance': FieldValue.increment(points),
+    });
   }
 
   // ═══════════════════════════════════════
@@ -553,24 +621,30 @@ class FirestoreService {
       RewardModel(
         id: 'reward_nike_50',
         title: 'Nike ₹500 Voucher',
-        description: 'Get a ₹500 discount on Nike products. Valid for 30 days after redemption.',
-        imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Logo_NIKE.svg/200px-Logo_NIKE.svg.png',
+        description:
+            'Get a ₹500 discount on Nike products. Valid for 30 days after redemption.',
+        imageUrl:
+            'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Logo_NIKE.svg/200px-Logo_NIKE.svg.png',
         pointsCost: 500,
         stock: 100,
       ),
       RewardModel(
         id: 'reward_amazon_25',
         title: 'Amazon ₹250 Gift Card',
-        description: 'Amazon gift card worth ₹250. Can be applied to your Amazon account.',
-        imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/200px-Amazon_logo.svg.png',
+        description:
+            'Amazon gift card worth ₹250. Can be applied to your Amazon account.',
+        imageUrl:
+            'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/200px-Amazon_logo.svg.png',
         pointsCost: 250,
         stock: 200,
       ),
       RewardModel(
         id: 'reward_spotify_1m',
         title: 'Spotify Premium 1 Month',
-        description: 'One month of Spotify Premium subscription. Enjoy ad-free music streaming.',
-        imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Spotify_icon.svg/200px-Spotify_icon.svg.png',
+        description:
+            'One month of Spotify Premium subscription. Enjoy ad-free music streaming.',
+        imageUrl:
+            'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Spotify_icon.svg/200px-Spotify_icon.svg.png',
         pointsCost: 300,
         stock: 50,
       ),
@@ -578,14 +652,16 @@ class FirestoreService {
         id: 'reward_starbucks',
         title: 'Starbucks ₹200 Card',
         description: 'Enjoy a coffee on us! Starbucks gift card worth ₹200.',
-        imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo_2011.svg/200px-Starbucks_Corporation_Logo_2011.svg.png',
+        imageUrl:
+            'https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo_2011.svg/200px-Starbucks_Corporation_Logo_2011.svg.png',
         pointsCost: 200,
         stock: 150,
       ),
       RewardModel(
         id: 'reward_custom_badge',
         title: 'Creator Badge',
-        description: 'Unlock an exclusive Creator badge on your profile! Show off your content creation skills.',
+        description:
+            'Unlock an exclusive Creator badge on your profile! Show off your content creation skills.',
         imageUrl: '',
         pointsCost: 100,
         stock: -1, // unlimited
@@ -593,7 +669,8 @@ class FirestoreService {
       RewardModel(
         id: 'reward_profile_theme',
         title: 'Premium Profile Theme',
-        description: 'Unlock exclusive profile color themes to make your profile stand out.',
+        description:
+            'Unlock exclusive profile color themes to make your profile stand out.',
         imageUrl: '',
         pointsCost: 150,
         stock: -1,
@@ -639,11 +716,19 @@ class FirestoreService {
     return snap.docs.map((d) => PostModel.fromMap(d.data())).toList();
   }
 
-  Future<List<PostModel>> getFeedPosts(List<String> followingUids, {int limit = 20}) async {
+  Future<List<PostModel>> getFeedPosts(
+    List<String> followingUids, {
+    int limit = 20,
+  }) async {
     if (followingUids.isEmpty) return [];
     final chunks = <List<String>>[];
     for (var i = 0; i < followingUids.length; i += 30) {
-      chunks.add(followingUids.sublist(i, i + 30 > followingUids.length ? followingUids.length : i + 30));
+      chunks.add(
+        followingUids.sublist(
+          i,
+          i + 30 > followingUids.length ? followingUids.length : i + 30,
+        ),
+      );
     }
     final allPosts = <PostModel>[];
     for (final chunk in chunks) {
@@ -703,18 +788,44 @@ class FirestoreService {
     return snap.docs.map((d) => StoryModel.fromMap(d.data())).toList();
   }
 
-  Future<List<StoryModel>> getFollowingStories(List<String> followingUids) async {
+  Future<List<StoryModel>> getFollowingStories(
+    List<String> followingUids, {
+    String? currentUid,
+  }) async {
     if (followingUids.isEmpty) return [];
     final now = DateTime.now();
     final allStories = <StoryModel>[];
     // chunk to avoid Firestore 30-item limit on whereIn
     for (var i = 0; i < followingUids.length; i += 30) {
-      final chunk = followingUids.sublist(i, i + 30 > followingUids.length ? followingUids.length : i + 30);
+      final chunk = followingUids.sublist(
+        i,
+        i + 30 > followingUids.length ? followingUids.length : i + 30,
+      );
       final snap = await _stories
           .where('creatorUid', whereIn: chunk)
           .where('expiresAt', isGreaterThan: Timestamp.fromDate(now))
           .get();
       allStories.addAll(snap.docs.map((d) => StoryModel.fromMap(d.data())));
+    }
+    // Filter out close_friends stories if current user is not in creator's close friends
+    if (currentUid != null) {
+      final closeFriendsCache = <String, List<String>>{};
+      final filtered = <StoryModel>[];
+      for (final story in allStories) {
+        if (story.audience == 'close_friends') {
+          if (!closeFriendsCache.containsKey(story.creatorUid)) {
+            closeFriendsCache[story.creatorUid] = await getCloseFriends(
+              story.creatorUid,
+            );
+          }
+          if (closeFriendsCache[story.creatorUid]!.contains(currentUid)) {
+            filtered.add(story);
+          }
+        } else {
+          filtered.add(story);
+        }
+      }
+      return filtered;
     }
     return allStories;
   }
@@ -728,5 +839,136 @@ class FirestoreService {
 
   Future<void> deleteStory(String storyId) async {
     await _stories.doc(storyId).delete();
+  }
+
+  // ═══════════════════════════════════════
+  // CLOSE FRIENDS
+  // ═══════════════════════════════════════
+  Future<List<String>> getCloseFriends(String uid) async {
+    final doc = await _users.doc(uid).get();
+    if (!doc.exists) return [];
+    final data = doc.data();
+    return List<String>.from(data?['closeFriends'] ?? []);
+  }
+
+  Future<void> updateCloseFriends(String uid, List<String> friends) async {
+    await _users.doc(uid).update({'closeFriends': friends});
+  }
+
+  // ═══════════════════════════════════════
+  // POST SAVE (BOOKMARKS)
+  // ═══════════════════════════════════════
+  Future<void> savePost(String uid, String postId) async {
+    await _db.collection('savedPosts').doc('${uid}_$postId').set({
+      'uid': uid,
+      'postId': postId,
+      'savedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> unsavePost(String uid, String postId) async {
+    await _db.collection('savedPosts').doc('${uid}_$postId').delete();
+  }
+
+  Future<bool> hasSavedPost(String uid, String postId) async {
+    final doc = await _db.collection('savedPosts').doc('${uid}_$postId').get();
+    return doc.exists;
+  }
+
+  Future<List<String>> getSavedPostIds(String uid) async {
+    final snap = await _db
+        .collection('savedPosts')
+        .where('uid', isEqualTo: uid)
+        .orderBy('savedAt', descending: true)
+        .get();
+    return snap.docs.map((d) => d.data()['postId'] as String).toList();
+  }
+
+  // ═══════════════════════════════════════
+  // REEL RATINGS
+  // ═══════════════════════════════════════
+  Future<void> rateReel(String uid, String reelId, int rating) async {
+    final docId = '${uid}_$reelId';
+    final existing = await _db.collection('reelRatings').doc(docId).get();
+    final batch = _db.batch();
+
+    if (existing.exists) {
+      // Update existing rating
+      final oldRating = existing.data()?['rating'] ?? 0;
+      batch.update(_db.collection('reelRatings').doc(docId), {
+        'rating': rating,
+        'createdAt': Timestamp.fromDate(DateTime.now()),
+      });
+      batch.update(_reels.doc(reelId), {
+        'ratingSum': FieldValue.increment(rating - oldRating),
+      });
+    } else {
+      // New rating
+      batch.set(_db.collection('reelRatings').doc(docId), {
+        'uid': uid,
+        'reelId': reelId,
+        'rating': rating,
+        'createdAt': Timestamp.fromDate(DateTime.now()),
+      });
+      batch.update(_reels.doc(reelId), {
+        'ratingSum': FieldValue.increment(rating),
+        'totalRatings': FieldValue.increment(1),
+      });
+    }
+    await batch.commit();
+
+    // Update average rating
+    final reel = await getReel(reelId);
+    if (reel != null && reel.totalRatings > 0) {
+      final avg =
+          (reel.ratingSum +
+              (existing.exists
+                  ? rating - (existing.data()?['rating'] ?? 0)
+                  : rating)) /
+          (reel.totalRatings + (existing.exists ? 0 : 1));
+      await _reels.doc(reelId).update({'averageRating': avg});
+    }
+  }
+
+  Future<int?> getUserReelRating(String uid, String reelId) async {
+    final doc = await _db.collection('reelRatings').doc('${uid}_$reelId').get();
+    if (!doc.exists) return null;
+    return doc.data()?['rating'] as int?;
+  }
+
+  // ═══════════════════════════════════════
+  // LEADERBOARDS
+  // ═══════════════════════════════════════
+  Future<List<Map<String, dynamic>>> getWeeklyLeaderboard({
+    int limit = 50,
+  }) async {
+    final snap = await _db
+        .collection('leaderboardWeekly')
+        .orderBy('completedWatches', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs.map((d) => d.data()).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getMonthlyLeaderboard({
+    int limit = 50,
+  }) async {
+    final snap = await _db
+        .collection('leaderboardMonthly')
+        .orderBy('completedWatches', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs.map((d) => d.data()).toList();
+  }
+
+  Future<int?> getUserRank(String uid, String collection) async {
+    final snap = await _db
+        .collection(collection)
+        .orderBy('completedWatches', descending: true)
+        .get();
+    for (int i = 0; i < snap.docs.length; i++) {
+      if (snap.docs[i].data()['uid'] == uid) return i + 1;
+    }
+    return null;
   }
 }

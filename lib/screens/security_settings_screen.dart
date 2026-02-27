@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/user_model.dart';
 import 'change_password_screen.dart';
+import '../utils/animations.dart';
 
 class SecuritySettingsScreen extends StatefulWidget {
   const SecuritySettingsScreen({super.key});
@@ -116,7 +117,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                           leading: Icon(Icons.lock_outline, color: textColor),
                           title: Text('Change Password', style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: textColor)),
                           trailing: Icon(Icons.chevron_right, color: subColor),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
+                          onTap: () => Navigator.push(context, SlideRightRoute(page: const ChangePasswordScreen())),
                         ),
                         Divider(height: 1, color: subColor.withAlpha(30)),
                         ListTile(

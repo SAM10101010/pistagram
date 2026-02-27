@@ -57,9 +57,11 @@ class _RedemptionSuccessScreenState extends State<RedemptionSuccessScreen> with 
                     height: 120,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Colors.green, Colors.green.withAlpha(180)],
-                      ),
+                      gradient: LinearGradient(colors: [Colors.green, Colors.green.withAlpha(180)]),
+                      boxShadow: [
+                        BoxShadow(color: Colors.green.withAlpha(80), blurRadius: 24, spreadRadius: 4),
+                        BoxShadow(color: Colors.green.withAlpha(40), blurRadius: 40, spreadRadius: 8),
+                      ],
                     ),
                     child: const Icon(Icons.check_rounded, size: 64, color: Colors.white),
                   ),
@@ -88,6 +90,7 @@ class _RedemptionSuccessScreenState extends State<RedemptionSuccessScreen> with 
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
                       gradient: LinearGradient(colors: [accent, HSLColor.fromColor(accent).withHue((HSLColor.fromColor(accent).hue + 40) % 360).toColor()]),
+                      boxShadow: [BoxShadow(color: accent.withAlpha(60), blurRadius: 16, offset: const Offset(0, 4))],
                     ),
                     child: ElevatedButton(
                       onPressed: () {

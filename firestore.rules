@@ -64,6 +64,13 @@ service cloud.firestore {
       allow delete: if isAuth();
     }
 
+    // ── Saved Posts (bookmarks) ──
+    match /savedPosts/{saveId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow delete: if isAuth();
+    }
+
     // ── Comments ──
     match /comments/{commentId} {
       allow read: if isAuth();
@@ -135,6 +142,106 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth();
       allow update: if isAuth();
+    }
+
+    // ══════════════════════════════════════════
+    // ── Gamification Collections ──
+    // ══════════════════════════════════════════
+
+    // ── Reel Engagements (composite key: uid_reelId) ──
+    match /reelEngagements/{engagementId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Reel Ratings (composite key: uid_reelId) ──
+    match /reelRatings/{ratingId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Series ──
+    match /series/{seriesId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.auth.uid == request.resource.data.creatorUid;
+      allow update: if isAuth() && request.auth.uid == resource.data.creatorUid;
+      allow delete: if false;
+    }
+
+    // ── Series Progress (composite key: uid_seriesId) ──
+    match /seriesProgress/{progressId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Leaderboard Weekly (doc per user, rebuilt by Cloud Function) ──
+    match /leaderboardWeekly/{uid} {
+      allow read: if isAuth();
+      allow create: if false; // Cloud Function only
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Leaderboard Monthly (doc per user, rebuilt by Cloud Function) ──
+    match /leaderboardMonthly/{uid} {
+      allow read: if isAuth();
+      allow create: if false; // Cloud Function only
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── User Achievements (composite key: uid_achievementId) ──
+    match /userAchievements/{achievementId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Campaigns (admin-created) ──
+    match /campaigns/{campaignId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Campaign Progress (composite key: uid_campaignId) ──
+    match /campaignProgress/{progressId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Boosted Reels (doc per reelId) ──
+    match /boostedReels/{reelId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false; // Cloud Function handles expiry
+    }
+
+    // ── Predictions (composite key: uid_reelId) ──
+    match /predictions/{predictionId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Mystery Box Results ──
+    match /mysteryBoxResults/{resultId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

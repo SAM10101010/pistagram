@@ -6,6 +6,7 @@ import '../services/firestore_service.dart';
 import '../services/follow_service.dart';
 import '../models/user_model.dart';
 import 'profile_screen.dart';
+import '../utils/animations.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   const BlockedUsersScreen({super.key});
@@ -99,7 +100,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                   itemBuilder: (ctx, i) {
                     final user = _blockedUsers[i];
                     return ListTile(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: user.uid))),
+                      onTap: () => Navigator.push(context, SlideRightRoute(page: ProfileScreen(userId: user.uid))),
                       leading: CircleAvatar(
                         backgroundImage: user.profilePicUrl.isNotEmpty ? CachedNetworkImageProvider(user.profilePicUrl) : null,
                         child: user.profilePicUrl.isEmpty ? const Icon(Icons.person, size: 20) : null,

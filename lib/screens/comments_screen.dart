@@ -7,6 +7,7 @@ import '../models/comment_model.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../utils/animations.dart';
 
 class CommentsScreen extends StatefulWidget {
   final String reelId;
@@ -99,7 +100,22 @@ class _CommentsScreenState extends State<CommentsScreen> {
               stream: _firestore.getComments(widget.reelId),
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator(color: accent));
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: 5,
+                    itemBuilder: (_, __) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      child: Row(children: [
+                        const ShimmerLoading(width: 32, height: 32, isCircle: true),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+                          ShimmerLoading(width: 160, height: 12, borderRadius: 6),
+                          SizedBox(height: 6),
+                          ShimmerLoading(width: 80, height: 10, borderRadius: 6),
+                        ])),
+                      ]),
+                    ),
+                  );
                 }
                 final comments = snap.data ?? [];
                 if (comments.isEmpty) {
@@ -107,9 +123,14 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.chat_bubble_outline, color: subColor, size: 40),
-                        const SizedBox(height: 8),
-                        Text('No comments yet', style: GoogleFonts.inter(color: subColor)),
+                        Container(
+                          width: 64, height: 64,
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[100]),
+                          child: Icon(Icons.chat_bubble_outline, color: subColor, size: 28),
+                        ),
+                        const SizedBox(height: 12),
+                        Text('No comments yet', style: GoogleFonts.inter(color: subColor, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 4),
                         Text('Be the first to comment!', style: GoogleFonts.inter(color: subColor, fontSize: 12)),
                       ],
                     ),
@@ -131,8 +152,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
               bottom: MediaQuery.of(context).viewInsets.bottom + 8,
             ),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[100],
-              border: Border(top: BorderSide(color: isDark ? Colors.white12 : Colors.black12)),
+              color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[50],
+              border: Border(top: BorderSide(color: isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(15))),
             ),
             child: Row(
               children: [
@@ -149,7 +170,11 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 ),
                 IconButton(
                   onPressed: _postComment,
-                  icon: Icon(Icons.send_rounded, color: accent),
+                  icon: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: accent),
+                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 16),
+                  ),
                 ),
               ],
             ),

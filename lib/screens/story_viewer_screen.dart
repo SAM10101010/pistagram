@@ -30,7 +30,6 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   late int _currentIndex;
   VideoPlayerController? _videoCtrl;
   late AnimationController _progressCtrl;
-  bool _isPaused = false;
 
   static const Duration _imageDuration = Duration(seconds: 5);
 
@@ -112,13 +111,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   }
 
   void _onLongPressStart(_) {
-    _isPaused = true;
     _progressCtrl.stop();
     _videoCtrl?.pause();
   }
 
   void _onLongPressEnd(_) {
-    _isPaused = false;
     _progressCtrl.forward();
     _videoCtrl?.play();
   }
@@ -164,7 +161,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   child: CircularProgressIndicator(color: Colors.white),
                 ),
                 errorWidget: (_, __, ___) => const Center(
-                  child: Icon(Icons.broken_image, color: Colors.white54, size: 48),
+                  child: Icon(
+                    Icons.broken_image,
+                    color: Colors.white54,
+                    size: 48,
+                  ),
                 ),
               )
             else
@@ -178,7 +179,10 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                 left: story.textX * MediaQuery.of(context).size.width - 100,
                 top: story.textY * MediaQuery.of(context).size.height - 20,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(8),
@@ -195,14 +199,22 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               ),
 
             // Sticker overlays
-            ...story.stickers.map((s) => Positioned(
-              left: (s['x'] as double? ?? 0.5) * MediaQuery.of(context).size.width - 20,
-              top: (s['y'] as double? ?? 0.5) * MediaQuery.of(context).size.height - 20,
-              child: Text(
-                s['emoji'] as String? ?? '',
-                style: TextStyle(fontSize: (s['size'] as double? ?? 40)),
+            ...story.stickers.map(
+              (s) => Positioned(
+                left:
+                    (s['x'] as double? ?? 0.5) *
+                        MediaQuery.of(context).size.width -
+                    20,
+                top:
+                    (s['y'] as double? ?? 0.5) *
+                        MediaQuery.of(context).size.height -
+                    20,
+                child: Text(
+                  s['emoji'] as String? ?? '',
+                  style: TextStyle(fontSize: (s['size'] as double? ?? 40)),
+                ),
               ),
-            )),
+            ),
 
             // Top gradient
             Positioned(
@@ -242,19 +254,19 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                                   color: Colors.white,
                                 )
                               : i == _currentIndex
-                                  ? AnimatedBuilder(
-                                      animation: _progressCtrl,
-                                      builder: (_, __) => LinearProgressIndicator(
-                                        value: _progressCtrl.value,
-                                        backgroundColor: Colors.white30,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const LinearProgressIndicator(
-                                      value: 0.0,
-                                      backgroundColor: Colors.white30,
-                                      color: Colors.white,
-                                    ),
+                              ? AnimatedBuilder(
+                                  animation: _progressCtrl,
+                                  builder: (_, __) => LinearProgressIndicator(
+                                    value: _progressCtrl.value,
+                                    backgroundColor: Colors.white30,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const LinearProgressIndicator(
+                                  value: 0.0,
+                                  backgroundColor: Colors.white30,
+                                  color: Colors.white,
+                                ),
                         ),
                       ),
                     ),
@@ -276,7 +288,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                         ? CachedNetworkImageProvider(creator.profilePicUrl)
                         : null,
                     child: creator.profilePicUrl.isEmpty
-                        ? const Icon(Icons.person, size: 18, color: Colors.white)
+                        ? const Icon(
+                            Icons.person,
+                            size: 18,
+                            color: Colors.white,
+                          )
                         : null,
                   ),
                   const SizedBox(width: 10),
@@ -291,12 +307,19 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   const SizedBox(width: 8),
                   Text(
                     timeago.format(story.createdAt),
-                    style: GoogleFonts.inter(color: Colors.white60, fontSize: 12),
+                    style: GoogleFonts.inter(
+                      color: Colors.white60,
+                      fontSize: 12,
+                    ),
                   ),
                   const Spacer(),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                 ],
               ),
@@ -313,11 +336,18 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.visibility_outlined, color: Colors.white70, size: 20),
+                          const Icon(
+                            Icons.visibility_outlined,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             '${story.viewCount} viewer${story.viewCount == 1 ? '' : 's'}',
-                            style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+                            style: GoogleFonts.inter(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
                           ),
                         ],
                       ),
@@ -326,14 +356,20 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       children: [
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.white30),
                               borderRadius: BorderRadius.circular(24),
                             ),
                             child: Text(
                               'Send message',
-                              style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
+                              style: GoogleFonts.inter(
+                                color: Colors.white54,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -361,19 +397,32 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
           children: [
             Center(
               child: Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.white30, borderRadius: BorderRadius.circular(2)),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white30,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             Text(
               'Viewers (${story.viewCount})',
-              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
             ),
             const SizedBox(height: 12),
             Expanded(
               child: story.viewerUids.isEmpty
-                  ? Center(child: Text('No viewers yet', style: GoogleFonts.inter(color: Colors.white54)))
+                  ? Center(
+                      child: Text(
+                        'No viewers yet',
+                        style: GoogleFonts.inter(color: Colors.white54),
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: story.viewerUids.length,
                       itemBuilder: (ctx, i) => FutureBuilder<UserModel?>(
@@ -382,14 +431,24 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                           final viewer = snap.data;
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundImage: viewer != null && viewer.profilePicUrl.isNotEmpty
-                                  ? CachedNetworkImageProvider(viewer.profilePicUrl) : null,
-                              child: viewer == null || viewer.profilePicUrl.isEmpty
-                                  ? const Icon(Icons.person, size: 16) : null,
+                              backgroundImage:
+                                  viewer != null &&
+                                      viewer.profilePicUrl.isNotEmpty
+                                  ? CachedNetworkImageProvider(
+                                      viewer.profilePicUrl,
+                                    )
+                                  : null,
+                              child:
+                                  viewer == null || viewer.profilePicUrl.isEmpty
+                                  ? const Icon(Icons.person, size: 16)
+                                  : null,
                             ),
                             title: Text(
                               viewer?.username ?? 'Loading...',
-                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500),
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           );
                         },

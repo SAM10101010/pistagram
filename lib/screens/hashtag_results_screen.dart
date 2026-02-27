@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/firestore_service.dart';
 import '../models/reel_model.dart';
 import 'reel_detail_screen.dart';
+import '../utils/animations.dart';
 
 class HashtagResultsScreen extends StatefulWidget {
   final String hashtag;
@@ -93,7 +94,7 @@ class _HashtagResultsScreenState extends State<HashtagResultsScreen> {
                         itemBuilder: (ctx, i) {
                           final reel = _reels[i];
                           return GestureDetector(
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReelDetailScreen(reelId: reel.reelId))),
+                            onTap: () => Navigator.push(context, SlideRightRoute(page: ReelDetailScreen(reelId: reel.reelId))),
                             child: Stack(
                               fit: StackFit.expand,
                               children: [

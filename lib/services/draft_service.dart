@@ -11,6 +11,9 @@ class DraftModel {
   final List<String> hashtags;
   final String location;
   final String filter;
+  final List<String> taggedUsers;
+  final bool hideLikes;
+  final bool hideComments;
   final DateTime createdAt;
 
   DraftModel({
@@ -23,6 +26,9 @@ class DraftModel {
     this.hashtags = const [],
     this.location = '',
     this.filter = 'none',
+    this.taggedUsers = const [],
+    this.hideLikes = false,
+    this.hideComments = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -36,6 +42,9 @@ class DraftModel {
     'hashtags': hashtags,
     'location': location,
     'filter': filter,
+    'taggedUsers': taggedUsers,
+    'hideLikes': hideLikes,
+    'hideComments': hideComments,
     'createdAt': createdAt.toIso8601String(),
   };
 
@@ -49,6 +58,9 @@ class DraftModel {
     hashtags: List<String>.from(map['hashtags'] ?? []),
     location: map['location'] ?? '',
     filter: map['filter'] ?? 'none',
+    taggedUsers: List<String>.from(map['taggedUsers'] ?? []),
+    hideLikes: map['hideLikes'] ?? false,
+    hideComments: map['hideComments'] ?? false,
     createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : DateTime.now(),
   );
 }

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
+import '../services/account_manager_service.dart';
 import 'home_screen.dart';
 import 'profile_setup_screen.dart';
 import 'otp_screen.dart';
+import 'forgot_password_screen.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  final bool isAddAccount;
+  const AuthScreen({super.key, this.isAddAccount = false});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -15,6 +19,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen>
     with SingleTickerProviderStateMixin {
   final _authService = AuthService();
+  final _accountManager = AccountManagerService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -64,15 +69,57 @@ class _AuthScreenState extends State<AuthScreen>
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    HapticFeedback.lightImpact();
     setState(() => _isLoading = true);
 
     try {
       if (_isLogin) {
-        await _authService.login(
-          email: _emailController.text.trim(),
+        // P5: Resolve username to email if input doesn't contain @
+        String loginEmail = _emailController.text.trim();
+        if (!loginEmail.contains('@')) {
+          final resolved = await _authService.resolveUsernameToEmail(loginEmail);
+          if (resolved == null) {
+            throw Exception('Username not found');
+          }
+          loginEmail = resolved;
+        }
+
+        final cred = await _authService.login(
+          email: loginEmail,
           password: _passwordController.text.trim(),
         );
-        await _navigateAfterAuth();
+
+        // Save account for multi-account switching
+        final uid = cred.user?.uid ?? '';
+        if (uid.isNotEmpty) {
+          await _accountManager.saveAccount(
+            uid: uid,
+            email: loginEmail,
+            password: _passwordController.text.trim(),
+          );
+          // Update display info from profile
+          _accountManager.updateAccountInfo(uid);
+        }
+
+        // If adding account, just pop back to account switcher
+        if (widget.isAddAccount) {
+          if (mounted) Navigator.pop(context);
+          return;
+        }
+
+        // P6: OTP verification on login
+        final profileComplete = await _authService.isProfileComplete();
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OtpScreen(
+                email: loginEmail,
+                nextScreen: profileComplete ? const HomeScreen() : const ProfileSetupScreen(),
+              ),
+            ),
+          );
+        }
       } else {
         await _authService.signUp(
           email: _emailController.text.trim(),
@@ -112,6 +159,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _signInWithGoogle() async {
+    HapticFeedback.lightImpact();
     setState(() => _googleLoading = true);
     try {
       await _authService.signInWithGoogle();
@@ -162,27 +210,14 @@ class _AuthScreenState extends State<AuthScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFFF58529),
-                              Color(0xFFDD2A7B),
-                              Color(0xFF8134AF),
-                              Color(0xFF515BD4),
-                            ],
-                            begin: Alignment.topRight,
-                            end: Alignment.bottomLeft,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.play_circle_outline_rounded,
-                          color: Colors.white,
-                          size: 40,
+                      // Logo with glow
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.asset(
+                          'assets/logo.png',
+                          width: 88,
+                          height: 88,
+                          fit: BoxFit.cover,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -218,11 +253,12 @@ class _AuthScreenState extends State<AuthScreen>
                         child: OutlinedButton.icon(
                           onPressed: _googleLoading ? null : _signInWithGoogle,
                           icon: _googleLoading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
+                                    color: accent,
                                   ),
                                 )
                               : Image.network(
@@ -241,16 +277,17 @@ class _AuthScreenState extends State<AuthScreen>
                             'Continue with Google',
                             style: GoogleFonts.inter(
                               fontSize: 15,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                               color: isDark ? Colors.white : Colors.black87,
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white.withAlpha(8) : Colors.white,
                             side: BorderSide(
-                              color: isDark ? Colors.white24 : Colors.black12,
+                              color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(15),
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
                         ),
@@ -284,22 +321,24 @@ class _AuthScreenState extends State<AuthScreen>
                       ),
                       const SizedBox(height: 20),
 
-                      // Email field
+                      // Email or Username field
                       TextFormField(
                         controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
+                        keyboardType: _isLogin ? TextInputType.text : TextInputType.emailAddress,
                         style: TextStyle(
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                         decoration: _inputDecoration(
-                          'Email',
-                          Icons.email_outlined,
+                          _isLogin ? 'Email or Username' : 'Email',
+                          _isLogin ? Icons.person_outline : Icons.email_outlined,
                           isDark,
                         ),
                         validator: (val) {
-                          if (val == null || val.isEmpty)
-                            return 'Enter your email';
-                          if (!val.contains('@')) return 'Invalid email';
+                          if (val == null || val.isEmpty) {
+                            return _isLogin ? 'Enter your email or username' : 'Enter your email';
+                          }
+                          // Only validate email format for signup
+                          if (!_isLogin && !val.contains('@')) return 'Invalid email';
                           return null;
                         },
                       ),
@@ -333,13 +372,37 @@ class _AuthScreenState extends State<AuthScreen>
                               ),
                             ),
                         validator: (val) {
-                          if (val == null || val.isEmpty)
+                          if (val == null || val.isEmpty) {
                             return 'Enter your password';
+                          }
                           if (val.length < 6) return 'Min 6 characters';
                           return null;
                         },
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 12),
+
+                      // Forgot password link (only in login mode)
+                      if (_isLogin)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                              );
+                            },
+                            child: Text(
+                              'Forgot Password?',
+                              style: GoogleFonts.inter(
+                                color: accent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 20),
 
                       // Submit button
                       SizedBox(
@@ -412,7 +475,10 @@ class _AuthScreenState extends State<AuthScreen>
                             ),
                           ),
                           GestureDetector(
-                            onTap: () => setState(() => _isLogin = !_isLogin),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _isLogin = !_isLogin);
+                            },
                             child: Text(
                               _isLogin ? 'Sign Up' : 'Log In',
                               style: GoogleFonts.inter(

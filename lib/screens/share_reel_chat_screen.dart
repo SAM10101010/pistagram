@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/messaging_service.dart';
 import '../models/user_model.dart';
+import '../utils/animations.dart';
 
 class ShareReelChatScreen extends StatefulWidget {
   final String reelId;
@@ -146,7 +147,23 @@ class _ShareReelChatScreenState extends State<ShareReelChatScreen> {
         ],
       ),
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: accent))
+          ? ListView.builder(
+  padding: const EdgeInsets.symmetric(vertical: 8),
+  itemCount: 6,
+  itemBuilder: (_, __) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+    child: Row(children: [
+      const ShimmerLoading(width: 44, height: 44, isCircle: true),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+        ShimmerLoading(width: 120, height: 14, borderRadius: 6),
+        SizedBox(height: 6),
+        ShimmerLoading(width: 80, height: 10, borderRadius: 6),
+      ])),
+      const ShimmerLoading(width: 24, height: 24, isCircle: true),
+    ]),
+  ),
+)
           : Column(
               children: [
                 Padding(
@@ -155,19 +172,24 @@ class _ShareReelChatScreenState extends State<ShareReelChatScreen> {
                     controller: _searchController,
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
-                      hintText: 'Search users...',
-                      hintStyle: TextStyle(color: subColor),
-                      prefixIcon: Icon(Icons.search, color: subColor),
-                      filled: true,
-                      fillColor: isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    ),
+  hintText: 'Search users...',
+  hintStyle: TextStyle(color: subColor),
+  prefixIcon: Icon(Icons.search_rounded, color: subColor),
+  filled: true,
+  fillColor: isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(10),
+  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+),
                   ),
                 ),
                 Expanded(
                   child: _filtered.isEmpty
-                      ? Center(child: Text('No chats found', style: GoogleFonts.inter(color: subColor)))
+                      ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+  Container(width: 64, height: 64, decoration: BoxDecoration(shape: BoxShape.circle, color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[100]),
+    child: Icon(Icons.search_off_rounded, color: subColor, size: 28)),
+  const SizedBox(height: 12),
+  Text('No chats found', style: GoogleFonts.inter(color: subColor, fontWeight: FontWeight.w500)),
+]))
                       : ListView.builder(
                           itemCount: _filtered.length,
                           itemBuilder: (ctx, i) {
@@ -183,10 +205,19 @@ class _ShareReelChatScreenState extends State<ShareReelChatScreen> {
                                   }
                                 });
                               },
-                              leading: CircleAvatar(
-                                backgroundImage: cu.user.profilePicUrl.isNotEmpty ? CachedNetworkImageProvider(cu.user.profilePicUrl) : null,
-                                child: cu.user.profilePicUrl.isEmpty ? const Icon(Icons.person, size: 20) : null,
-                              ),
+                              leading: Container(
+  padding: const EdgeInsets.all(2),
+  decoration: BoxDecoration(
+    shape: BoxShape.circle,
+    gradient: LinearGradient(colors: [accent, accent.withAlpha(150)]),
+  ),
+  child: CircleAvatar(
+    radius: 20,
+    backgroundColor: isDark ? const Color(0xFF0D0D0D) : Colors.white,
+    backgroundImage: cu.user.profilePicUrl.isNotEmpty ? CachedNetworkImageProvider(cu.user.profilePicUrl) : null,
+    child: cu.user.profilePicUrl.isEmpty ? const Icon(Icons.person, size: 18) : null,
+  ),
+),
                               title: Text(cu.user.username, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor)),
                               subtitle: Text(cu.user.displayName, style: GoogleFonts.inter(fontSize: 13, color: subColor)),
                               trailing: Icon(

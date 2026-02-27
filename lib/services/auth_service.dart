@@ -25,6 +25,17 @@ class AuthService {
     return snap.docs.isEmpty;
   }
 
+  /// Resolve a username to an email address for login
+  Future<String?> resolveUsernameToEmail(String username) async {
+    final snap = await _db
+        .collection('users')
+        .where('username', isEqualTo: username.toLowerCase().trim())
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    return snap.docs.first.data()['email'] as String?;
+  }
+
   /// Sign up with email + password
   Future<UserCredential> signUp({
     required String email,

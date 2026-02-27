@@ -55,8 +55,9 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> toggleTheme() async {
-    _themeMode =
-        _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    _themeMode = _themeMode == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_themeKey, _themeMode == ThemeMode.dark);
     notifyListeners();
@@ -65,23 +66,22 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> setAccentColor(Color color) async {
     _accentColor = color;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_accentKey, color.value);
+    await prefs.setInt(_accentKey, color.toARGB32());
     notifyListeners();
   }
 
   // Gradient using accent color
   LinearGradient get accentGradient => LinearGradient(
-        colors: [
-          _accentColor,
-          HSLColor.fromColor(_accentColor)
-              .withHue((HSLColor.fromColor(_accentColor).hue + 40) % 360)
-              .toColor(),
-        ],
-      );
+    colors: [
+      _accentColor,
+      HSLColor.fromColor(
+        _accentColor,
+      ).withHue((HSLColor.fromColor(_accentColor).hue + 40) % 360).toColor(),
+    ],
+  );
 
   // Secondary color derived from accent
-  Color get accentSecondary =>
-      HSLColor.fromColor(_accentColor)
-          .withHue((HSLColor.fromColor(_accentColor).hue + 40) % 360)
-          .toColor();
+  Color get accentSecondary => HSLColor.fromColor(
+    _accentColor,
+  ).withHue((HSLColor.fromColor(_accentColor).hue + 40) % 360).toColor();
 }

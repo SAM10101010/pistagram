@@ -1,9 +1,16 @@
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
 import 'firestore_service.dart';
 import 'fraud_service.dart';
+import 'level_service.dart';
+import 'streak_service.dart';
+import 'reaction_reward_service.dart';
+import 'achievement_service.dart';
+import 'campaign_service.dart';
+import 'series_service.dart';
 
 class PointsService {
   static const String _pointsKey = 'total_points';
@@ -14,6 +21,12 @@ class PointsService {
 
   final FirestoreService _firestoreService = FirestoreService();
   final FraudService _fraudService = FraudService();
+  final LevelService _levelService = LevelService();
+  final StreakService _streakService = StreakService();
+  final ReactionRewardService _reactionService = ReactionRewardService();
+  final AchievementService _achievementService = AchievementService();
+  final CampaignService _campaignService = CampaignService();
+  final SeriesService _seriesService = SeriesService();
 
   /// Weighted random points: 1-5 (~75%), 6-10 (~25%)
   static int generateRandomPoints() {
@@ -30,9 +43,16 @@ class PointsService {
     return prefs.getInt(_pointsKey) ?? 0;
   }
 
-  /// Add points — with suspension and private reel checks
-  Future<int> addPoints(int amount, {String? uid, String? reelId}) async {
-    // Check if user is suspended — no rewards
+  /// Add points — locked for 24h before becoming spendable.
+  /// Also triggers streak, level, achievement, campaign, and series tracking.
+  Future<Map<String, dynamic>> addPoints(
+    int amount, {
+    String? uid,
+    String? reelId,
+  }) async {
+    final result = <String, dynamic>{'points': amount};
+
+    // Check if user is suspended
     if (uid != null) {
       final user = await _firestoreService.getUser(uid);
       if (user == null || user.accountStatus != 'active') {
@@ -40,7 +60,7 @@ class PointsService {
       }
     }
 
-    // Check if reel is private — no rewards for private reels
+    // Check if reel is private
     if (reelId != null) {
       final reel = await _firestoreService.getReel(reelId);
       if (reel != null && reel.visibility == 'private') {
@@ -58,8 +78,8 @@ class PointsService {
     final newTotal = current + amount;
     await prefs.setInt(_pointsKey, newTotal);
 
-    // Log transaction to Firestore
     if (uid != null) {
+      // Log transaction
       final txn = TransactionModel(
         id: _uuid.v4(),
         uid: uid,
@@ -69,10 +89,76 @@ class PointsService {
         reelId: reelId ?? '',
       );
       await _firestoreService.addTransaction(txn);
-      await _firestoreService.updatePointsBalance(uid, amount);
+
+      // Points go to lockedPoints (unlocked after 24h by Cloud Function)
+      await _firestoreService.updateUser(uid, {
+        'lockedPoints': FieldValue.increment(amount),
+      });
+
+      // Track engagement for reaction bonuses
+      if (reelId != null) {
+        await _reactionService.onReelWatched(uid, reelId, amount);
+      }
+
+      // Update level
+      final newLevel = await _levelService.addEarnedPoints(uid, amount);
+      if (newLevel != null) {
+        result['levelUp'] = newLevel;
+        await _achievementService.checkAndAward(
+          uid,
+          'levelup',
+          context: {'level': newLevel},
+        );
+      }
+
+      // Update streak
+      final streakInfo = await _streakService.onReelCompleted(uid);
+      if (streakInfo != null) {
+        result['streak'] = streakInfo;
+        if (streakInfo['isMilestone'] == true) {
+          await _achievementService.checkAndAward(
+            uid,
+            'streak',
+            context: streakInfo,
+          );
+        }
+      }
+
+      // Check achievements
+      await _achievementService.checkAndAward(uid, 'watch');
+
+      // Track campaigns
+      await _campaignService.onReelWatched(uid);
+
+      // Track series progress
+      if (reelId != null) {
+        final seriesResult = await _seriesService.onReelWatched(uid, reelId);
+        if (seriesResult != null) {
+          result['series'] = seriesResult;
+        }
+      }
     }
 
-    return newTotal;
+    result['newTotal'] = newTotal;
+    return result;
+  }
+
+  /// Add bonus points directly to available balance (not locked).
+  /// Used for streak milestones, achievements, campaign rewards.
+  Future<void> addBonusPoints(int amount, String uid, String reason) async {
+    final txn = TransactionModel(
+      id: _uuid.v4(),
+      uid: uid,
+      type: 'bonus',
+      amount: amount,
+      reason: reason,
+    );
+    await _firestoreService.addTransaction(txn);
+    await _firestoreService.updatePointsBalance(uid, amount);
+
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getInt(_pointsKey) ?? 0;
+    await prefs.setInt(_pointsKey, current + amount);
   }
 
   /// Redeem points — check suspended status

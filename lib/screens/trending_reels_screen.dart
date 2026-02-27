@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/firestore_service.dart';
 import '../models/reel_model.dart';
 import 'reel_detail_screen.dart';
+import '../utils/animations.dart';
 
 class TrendingReelsScreen extends StatefulWidget {
   const TrendingReelsScreen({super.key});
@@ -92,7 +93,7 @@ class _TrendingReelsScreenState extends State<TrendingReelsScreen> {
                     itemBuilder: (ctx, i) {
                       final reel = _reels[i];
                       return GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReelDetailScreen(reelId: reel.reelId))),
+                        onTap: () => Navigator.push(context, SlideRightRoute(page: ReelDetailScreen(reelId: reel.reelId))),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [

@@ -145,7 +145,19 @@ class _OtpScreenState extends State<OtpScreen> {
             children: [
               const SizedBox(height: 40),
               // Header
-              Icon(Icons.mark_email_read_rounded, size: 64, color: accent),
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withAlpha(15),
+                  boxShadow: [
+                    BoxShadow(color: accent.withAlpha(30), blurRadius: 24, spreadRadius: 4),
+                    BoxShadow(color: accent.withAlpha(15), blurRadius: 40, spreadRadius: 8),
+                  ],
+                ),
+                child: Icon(Icons.mark_email_read_rounded, size: 44, color: accent),
+              ),
               const SizedBox(height: 20),
               Text(
                 'Verify Your Email',
@@ -218,11 +230,11 @@ class _OtpScreenState extends State<OtpScreen> {
                               ? Colors.white.withAlpha(15)
                               : Colors.black.withAlpha(10),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide(color: accent, width: 2),
                           ),
                         ),

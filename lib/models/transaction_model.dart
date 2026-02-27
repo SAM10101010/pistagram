@@ -42,4 +42,24 @@ class TransactionModel {
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
+
+  TransactionModel copyWith({
+    String? id,
+    String? uid,
+    String? type,
+    int? amount,
+    String? reason,
+    String? reelId,
+    DateTime? createdAt,
+  }) {
+    return TransactionModel(
+      id: id ?? this.id,
+      uid: uid ?? this.uid,
+      type: type ?? this.type,
+      amount: amount ?? this.amount,
+      reason: reason ?? this.reason,
+      reelId: reelId ?? this.reelId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }

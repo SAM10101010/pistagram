@@ -107,24 +107,30 @@ class _RewardDetailScreenState extends State<RewardDetailScreen> {
           children: [
             // Image
             if (reward.imageUrl.isNotEmpty)
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: CachedNetworkImage(
-                  imageUrl: reward.imageUrl,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200]),
-                  errorWidget: (_, __, ___) => Container(
-                    color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-                    child: Icon(Icons.card_giftcard, size: 64, color: subColor),
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: CachedNetworkImage(
+                    imageUrl: reward.imageUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200]),
+                    errorWidget: (_, __, ___) => Container(
+                      color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                      child: Icon(Icons.card_giftcard, size: 64, color: subColor),
+                    ),
                   ),
                 ),
               )
             else
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(
-                  color: accent.withAlpha(30),
-                  child: Icon(Icons.card_giftcard, size: 80, color: accent),
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Container(
+                    color: accent.withAlpha(30),
+                    child: Icon(Icons.card_giftcard, size: 80, color: accent),
+                  ),
                 ),
               ),
             Padding(
@@ -149,7 +155,11 @@ class _RewardDetailScreenState extends State<RewardDetailScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(14)),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10)),
+                    ),
                     child: Column(
                       children: [
                         _detailRow('Stock', reward.stock > 0 ? '${reward.stock} remaining' : 'Unlimited', textColor, subColor),
@@ -179,6 +189,7 @@ class _RewardDetailScreenState extends State<RewardDetailScreen> {
                 gradient: reward.isActive
                     ? LinearGradient(colors: [accent, HSLColor.fromColor(accent).withHue((HSLColor.fromColor(accent).hue + 40) % 360).toColor()])
                     : null,
+                boxShadow: reward.isActive ? [BoxShadow(color: accent.withAlpha(60), blurRadius: 16, offset: const Offset(0, 4))] : null,
                 color: reward.isActive ? null : subColor.withAlpha(40),
               ),
               child: ElevatedButton(

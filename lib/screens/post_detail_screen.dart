@@ -6,6 +6,7 @@ import '../models/post_model.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../utils/animations.dart';
 import 'comments_screen.dart';
 import 'profile_screen.dart';
 
@@ -72,6 +73,62 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  ColorFilter? _getFilterMatrix(String filter) {
+    switch (filter) {
+      case 'warm': return const ColorFilter.matrix([1.2,0.1,0,0,10, 0,1.0,0,0,0, 0,0,0.8,0,0, 0,0,0,1,0]);
+      case 'cool': return const ColorFilter.matrix([0.8,0,0,0,0, 0,1.0,0.1,0,10, 0,0,1.2,0,10, 0,0,0,1,0]);
+      case 'sepia': return const ColorFilter.matrix([0.393,0.769,0.189,0,0, 0.349,0.686,0.168,0,0, 0.272,0.534,0.131,0,0, 0,0,0,1,0]);
+      case 'grayscale': return const ColorFilter.matrix([0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0,0,0,1,0]);
+      case 'vibrant': return const ColorFilter.matrix([1.3,0,0,0,0, 0,1.3,0,0,0, 0,0,1.3,0,0, 0,0,0,1,0]);
+      case 'fade': return const ColorFilter.matrix([1,0,0,0,30, 0,1,0,0,30, 0,0,1,0,30, 0,0,0,0.9,0]);
+      case 'noir': return const ColorFilter.matrix([0.3,0.6,0.1,0,-20, 0.3,0.6,0.1,0,-20, 0.3,0.6,0.1,0,-20, 0,0,0,1,0]);
+      default: return null;
+    }
+  }
+
+  List<Widget> _buildOverlayWidgets(PostModel post, double width, double height) {
+    return [
+      if (post.overlayText.isNotEmpty)
+        Positioned(
+          left: post.textX * width,
+          top: post.textY * height,
+          child: Text(
+            post.overlayText,
+            style: TextStyle(
+              fontSize: 16 * post.textScale,
+              color: post.textColor.isNotEmpty
+                  ? Color(int.parse(post.textColor.replaceFirst('#', '0xFF')))
+                  : Colors.white,
+              fontWeight: FontWeight.bold,
+              shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
+            ),
+          ),
+        ),
+      ...post.stickers.map((s) => Positioned(
+        left: (s['x'] as double) * width,
+        top: (s['y'] as double) * height,
+        child: Text(s['emoji'] as String, style: TextStyle(fontSize: (s['size'] as double))),
+      )),
+      if (post.musicName.isNotEmpty)
+        Positioned(
+          bottom: 8,
+          left: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.music_note, color: Colors.white, size: 14),
+                const SizedBox(width: 4),
+                Text(post.musicName, style: const TextStyle(color: Colors.white, fontSize: 11)),
+              ],
+            ),
+          ),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
@@ -115,8 +172,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: GestureDetector(
                 onTap: () {
                   if (creator != null) {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => ProfileScreen(userId: creator.uid),
+                    Navigator.push(context, SlideRightRoute(
+                      page: ProfileScreen(userId: creator.uid),
                     ));
                   }
                 },
@@ -150,18 +207,51 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
             ),
 
+            // Tagged users
+            if (post.taggedUsers.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_pin_outlined, color: accent, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${post.taggedUsers.length} ${post.taggedUsers.length == 1 ? 'person' : 'people'} tagged',
+                      style: GoogleFonts.inter(fontSize: 12, color: accent),
+                    ),
+                  ],
+                ),
+              ),
+
             // Media
             if (post.mediaUrls.isNotEmpty)
               post.mediaUrls.length == 1
                   ? AspectRatio(
                       aspectRatio: 1.0,
-                      child: CachedNetworkImage(
-                        imageUrl: post.mediaUrls[0],
-                        fit: BoxFit.cover,
-                        placeholder: (c, u) => Container(
-                          color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-                          child: Center(child: CircularProgressIndicator(color: accent, strokeWidth: 2)),
-                        ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final cw = constraints.maxWidth;
+                          final ch = constraints.maxHeight;
+                          final filter = _getFilterMatrix(post.filter);
+                          Widget img = CachedNetworkImage(
+                            imageUrl: post.mediaUrls[0],
+                            fit: BoxFit.cover,
+                            width: cw,
+                            height: ch,
+                            placeholder: (c, u) => Container(
+                              color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                              child: Center(child: CircularProgressIndicator(color: accent, strokeWidth: 2)),
+                            ),
+                          );
+                          if (filter != null) img = ColorFiltered(colorFilter: filter, child: img);
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              img,
+                              ..._buildOverlayWidgets(post, cw, ch),
+                            ],
+                          );
+                        },
                       ),
                     )
                   : Column(
@@ -171,13 +261,30 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           child: PageView.builder(
                             itemCount: post.mediaUrls.length,
                             onPageChanged: (p) => setState(() => _currentPage = p),
-                            itemBuilder: (ctx, idx) => CachedNetworkImage(
-                              imageUrl: post.mediaUrls[idx],
-                              fit: BoxFit.cover,
-                              placeholder: (c, u) => Container(
-                                color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-                                child: Center(child: CircularProgressIndicator(color: accent, strokeWidth: 2)),
-                              ),
+                            itemBuilder: (ctx, idx) => LayoutBuilder(
+                              builder: (context, constraints) {
+                                final cw = constraints.maxWidth;
+                                final ch = constraints.maxHeight;
+                                final filter = _getFilterMatrix(post.filter);
+                                Widget img = CachedNetworkImage(
+                                  imageUrl: post.mediaUrls[idx],
+                                  fit: BoxFit.cover,
+                                  width: cw,
+                                  height: ch,
+                                  placeholder: (c, u) => Container(
+                                    color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                                    child: Center(child: CircularProgressIndicator(color: accent, strokeWidth: 2)),
+                                  ),
+                                );
+                                if (filter != null) img = ColorFiltered(colorFilter: filter, child: img);
+                                return Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    img,
+                                    ..._buildOverlayWidgets(post, cw, ch),
+                                  ],
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -238,8 +345,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Text(
-                '$_likesCount likes',
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
+                widget.post.hideLikes ? 'Liked by others' : '$_likesCount likes',
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: textColor),
               ),
             ),
 
@@ -272,23 +379,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
 
             // View comments
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              child: GestureDetector(
-                onTap: () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => CommentsScreen(reelId: post.postId, isPost: true),
-                ),
-                child: Text(
-                  post.commentsCount > 0
-                      ? 'View all ${post.commentsCount} comments'
-                      : 'Add a comment...',
-                  style: GoogleFonts.inter(fontSize: 13, color: subColor),
+            if (!widget.post.hideComments)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: GestureDetector(
+                  onTap: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => CommentsScreen(reelId: post.postId, isPost: true),
+                  ),
+                  child: Text(
+                    post.commentsCount > 0
+                        ? 'View all ${post.commentsCount} comments'
+                        : 'Add a comment...',
+                    style: GoogleFonts.inter(fontSize: 13, color: subColor),
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 20),
           ],
         ),

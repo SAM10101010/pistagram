@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../services/draft_service.dart';
+import '../utils/animations.dart';
 import 'upload_screen.dart';
 
 class DraftsScreen extends StatefulWidget {
@@ -63,7 +64,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF0D0D0D) : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA), scrolledUnderElevation: 0,
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 22),
@@ -73,22 +74,45 @@ class _DraftsScreenState extends State<DraftsScreen> {
         centerTitle: true,
       ),
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: accent))
+          ? ListView.builder(
+  padding: const EdgeInsets.all(12),
+  itemCount: 4,
+  itemBuilder: (_, __) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(children: [
+      const ShimmerLoading(width: 64, height: 64, borderRadius: 10),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+        ShimmerLoading(width: 60, height: 16, borderRadius: 8),
+        SizedBox(height: 8),
+        ShimmerLoading(width: 140, height: 14, borderRadius: 6),
+        SizedBox(height: 6),
+        ShimmerLoading(width: 80, height: 10, borderRadius: 6),
+      ])),
+    ]),
+  ),
+)
           : _drafts.isEmpty
               ? Center(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.drafts_outlined, size: 56, color: subColor),
-                      const SizedBox(height: 12),
-                      Text('No drafts saved', style: GoogleFonts.inter(color: subColor, fontSize: 15)),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Create a post and save it as a draft',
-                        style: GoogleFonts.inter(color: subColor, fontSize: 12),
-                      ),
-                    ],
-                  ),
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    Container(
+      width: 80, height: 80,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[100]),
+      child: Icon(Icons.drafts_outlined, size: 36, color: subColor),
+    ),
+    const SizedBox(height: 20),
+    Text('No drafts saved', style: GoogleFonts.inter(color: textColor, fontSize: 16, fontWeight: FontWeight.w600)),
+    const SizedBox(height: 4),
+    Text('Create a post and save it as a draft', style: GoogleFonts.inter(color: subColor, fontSize: 13)),
+  ],
+),
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(12),

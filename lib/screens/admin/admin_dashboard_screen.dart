@@ -8,6 +8,8 @@ import 'admin_reel_moderation_screen.dart';
 import 'admin_reward_management_screen.dart';
 import 'admin_fraud_screen.dart';
 import 'admin_analytics_screen.dart';
+import 'admin_campaign_screen.dart';
+import '../../utils/animations.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -64,12 +66,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final cardColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0D0D0D)
+          : const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('Admin Panel', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: textColor), onPressed: () => Navigator.pop(context)),
+        title: Text(
+          'Admin Panel',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: accent))
@@ -87,40 +100,156 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     mainAxisSpacing: 12,
                     childAspectRatio: 1.5,
                     children: [
-                      _statCard('Users', _totalUsers, Icons.people, Colors.blue, cardColor, textColor, subColor),
-                      _statCard('Reels', _totalReels, Icons.play_circle, Colors.purple, cardColor, textColor, subColor),
-                      _statCard('Reports', _pendingReports, Icons.report, Colors.orange, cardColor, textColor, subColor),
-                      _statCard('Flagged', _flaggedAccounts, Icons.flag, Colors.redAccent, cardColor, textColor, subColor),
+                      _statCard(
+                        'Users',
+                        _totalUsers,
+                        Icons.people,
+                        Colors.blue,
+                        cardColor,
+                        textColor,
+                        subColor,
+                      ),
+                      _statCard(
+                        'Reels',
+                        _totalReels,
+                        Icons.play_circle,
+                        Colors.purple,
+                        cardColor,
+                        textColor,
+                        subColor,
+                      ),
+                      _statCard(
+                        'Reports',
+                        _pendingReports,
+                        Icons.report,
+                        Colors.orange,
+                        cardColor,
+                        textColor,
+                        subColor,
+                      ),
+                      _statCard(
+                        'Flagged',
+                        _flaggedAccounts,
+                        Icons.flag,
+                        Colors.redAccent,
+                        cardColor,
+                        textColor,
+                        subColor,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
 
                   // Quick actions
-                  Text('Management', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: subColor)),
+                  Text(
+                    'Management',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: subColor,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Container(
-                    decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(14)),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     child: Column(
                       children: [
-                        _actionTile(Icons.people_outline, 'User Management', 'Manage users, suspensions & bans', textColor, subColor, () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminUserManagementScreen()));
-                        }),
+                        _actionTile(
+                          Icons.people_outline,
+                          'User Management',
+                          'Manage users, suspensions & bans',
+                          textColor,
+                          subColor,
+                          () {
+                            Navigator.push(
+                              context,
+                              SlideRightRoute(
+                                page: const AdminUserManagementScreen(),
+                              ),
+                            );
+                          },
+                        ),
                         Divider(height: 1, color: subColor.withAlpha(30)),
-                        _actionTile(Icons.movie_filter_outlined, 'Reel Moderation', 'Review reported reels', textColor, subColor, () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminReelModerationScreen()));
-                        }),
+                        _actionTile(
+                          Icons.movie_filter_outlined,
+                          'Reel Moderation',
+                          'Review reported reels',
+                          textColor,
+                          subColor,
+                          () {
+                            Navigator.push(
+                              context,
+                              SlideRightRoute(
+                                page: const AdminReelModerationScreen(),
+                              ),
+                            );
+                          },
+                        ),
                         Divider(height: 1, color: subColor.withAlpha(30)),
-                        _actionTile(Icons.card_giftcard, 'Reward Management', 'Add, edit & manage rewards', textColor, subColor, () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminRewardManagementScreen()));
-                        }),
+                        _actionTile(
+                          Icons.card_giftcard,
+                          'Reward Management',
+                          'Add, edit & manage rewards',
+                          textColor,
+                          subColor,
+                          () {
+                            Navigator.push(
+                              context,
+                              SlideRightRoute(
+                                page: const AdminRewardManagementScreen(),
+                              ),
+                            );
+                          },
+                        ),
                         Divider(height: 1, color: subColor.withAlpha(30)),
-                        _actionTile(Icons.security, 'Fraud Detection', 'Review flagged accounts', textColor, subColor, () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFraudScreen()));
-                        }),
+                        _actionTile(
+                          Icons.security,
+                          'Fraud Detection',
+                          'Review flagged accounts',
+                          textColor,
+                          subColor,
+                          () {
+                            Navigator.push(
+                              context,
+                              SlideRightRoute(page: const AdminFraudScreen()),
+                            );
+                          },
+                        ),
                         Divider(height: 1, color: subColor.withAlpha(30)),
-                        _actionTile(Icons.analytics_outlined, 'Analytics', 'Platform statistics & insights', textColor, subColor, () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminAnalyticsScreen()));
-                        }),
+                        _actionTile(
+                          Icons.analytics_outlined,
+                          'Analytics',
+                          'Platform statistics & insights',
+                          textColor,
+                          subColor,
+                          () {
+                            Navigator.push(
+                              context,
+                              SlideRightRoute(
+                                page: const AdminAnalyticsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        Divider(height: 1, color: subColor.withAlpha(30)),
+                        _actionTile(
+                          Icons.campaign_outlined,
+                          'Campaigns',
+                          'Create & manage reward campaigns',
+                          textColor,
+                          subColor,
+                          () {
+                            Navigator.push(
+                              context,
+                              SlideRightRoute(
+                                page: const AdminCampaignScreen(),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -130,10 +259,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _statCard(String label, int count, IconData icon, Color color, Color cardColor, Color textColor, Color subColor) {
+  Widget _statCard(
+    String label,
+    int count,
+    IconData icon,
+    Color color,
+    Color cardColor,
+    Color textColor,
+    Color subColor,
+  ) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -142,7 +282,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             children: [
               Icon(icon, color: color, size: 22),
               const Spacer(),
-              Text(_formatCount(count), style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
+              Text(
+                _formatCount(count),
+                style: GoogleFonts.outfit(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -152,11 +299,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _actionTile(IconData icon, String title, String subtitle, Color textColor, Color subColor, VoidCallback onTap) {
+  Widget _actionTile(
+    IconData icon,
+    String title,
+    String subtitle,
+    Color textColor,
+    Color subColor,
+    VoidCallback onTap,
+  ) {
     return ListTile(
       leading: Icon(icon, color: textColor),
-      title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)),
-      subtitle: Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: subColor)),
+      title: Text(
+        title,
+        style: GoogleFonts.inter(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          color: textColor,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.inter(fontSize: 12, color: subColor),
+      ),
       trailing: Icon(Icons.chevron_right, color: subColor),
       onTap: onTap,
     );

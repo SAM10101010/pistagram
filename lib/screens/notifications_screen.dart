@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/follow_service.dart';
+import '../utils/animations.dart';
 import 'profile_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -48,9 +49,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 22),
         ),
         actions: [
-          TextButton(
-            onPressed: () => _firestore.markAllNotificationsRead(uid),
-            child: Text('Read All', style: GoogleFonts.inter(color: accent, fontSize: 13)),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton(
+              onPressed: () => _firestore.markAllNotificationsRead(uid),
+              style: TextButton.styleFrom(
+                backgroundColor: accent.withAlpha(25),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              ),
+              child: Text('Read All', style: GoogleFonts.inter(color: accent, fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
           ),
         ],
       ),
@@ -58,7 +67,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         stream: _firestore.getNotifications(uid),
         builder: (ctx, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: accent));
+            return _buildShimmerLoading(isDark);
           }
           final notifs = snap.data ?? [];
           if (notifs.isEmpty) {
@@ -66,9 +75,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.notifications_none_rounded, size: 64, color: subColor),
-                  const SizedBox(height: 12),
-                  Text('No activity yet', style: GoogleFonts.inter(color: subColor, fontSize: 15)),
+                  Container(
+                    padding: const EdgeInsets.all(28),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          accent.withAlpha(25),
+                          accent.withAlpha(8),
+                        ],
+                      ),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent.withAlpha(18),
+                      ),
+                      child: Icon(Icons.notifications_none_rounded, size: 48, color: accent.withAlpha(150)),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text('No activity yet', style: GoogleFonts.outfit(color: textColor, fontSize: 18, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Text('When someone interacts with you,\nyou\'ll see it here.', textAlign: TextAlign.center, style: GoogleFonts.inter(color: subColor, fontSize: 14, height: 1.5)),
                 ],
               ),
             );
@@ -94,48 +126,129 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           case 'like': icon = Icons.favorite; break;
           case 'comment': icon = Icons.chat_bubble; break;
           case 'points': icon = Icons.stars; break;
+          case 'tag': icon = Icons.person_pin; break;
           default: icon = Icons.notifications;
         }
 
+        Color iconAccent;
+        switch (notif.type) {
+          case 'follow': iconAccent = Colors.blue; break;
+          case 'like': iconAccent = Colors.pinkAccent; break;
+          case 'comment': iconAccent = Colors.green; break;
+          case 'points': iconAccent = const Color(0xFFFFD700); break;
+          case 'tag': iconAccent = Colors.orange; break;
+          default: iconAccent = accent;
+        }
+
         return Container(
-          color: notif.read ? Colors.transparent : (isDark ? accent.withAlpha(15) : accent.withAlpha(20)),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            leading: CircleAvatar(
-              radius: 22,
-              backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-              backgroundImage: sender != null && sender.profilePicUrl.isNotEmpty
-                  ? CachedNetworkImageProvider(sender.profilePicUrl) : null,
-              child: sender == null || sender.profilePicUrl.isEmpty
-                  ? Icon(icon, color: accent, size: 20) : null,
+          margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10),
             ),
-            title: RichText(
-              text: TextSpan(children: [
-                TextSpan(
-                  text: sender?.username ?? 'Someone',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: textColor),
+            boxShadow: [
+              if (!isDark)
+                BoxShadow(
+                  color: Colors.black.withAlpha(8),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-                TextSpan(
-                  text: ' ${notif.message}',
-                  style: GoogleFonts.inter(fontSize: 14, color: textColor),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                if (!notif.read) _firestore.markNotificationRead(notif.id);
+                if (notif.fromUid.isNotEmpty) {
+                  Navigator.push(context, SlideRightRoute(
+                    page: ProfileScreen(userId: notif.fromUid),
+                  ));
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundColor: isDark ? const Color(0xFF252540) : Colors.grey[200],
+                          backgroundImage: sender != null && sender.profilePicUrl.isNotEmpty
+                              ? CachedNetworkImageProvider(sender.profilePicUrl) : null,
+                          child: sender == null || sender.profilePicUrl.isEmpty
+                              ? Icon(icon, color: iconAccent, size: 22) : null,
+                        ),
+                        Positioned(
+                          right: -4,
+                          bottom: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: iconAccent.withAlpha(30),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                                width: 2,
+                              ),
+                            ),
+                            child: Icon(icon, size: 12, color: iconAccent),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          RichText(
+                            text: TextSpan(children: [
+                              TextSpan(
+                                text: sender?.username ?? 'Someone',
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: textColor),
+                              ),
+                              TextSpan(
+                                text: ' ${notif.message}',
+                                style: GoogleFonts.inter(fontSize: 14, color: textColor),
+                              ),
+                            ]),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            timeago.format(notif.createdAt),
+                            style: GoogleFonts.inter(color: subColor, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (notif.type == 'follow')
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _buildFollowBackButton(notif.fromUid, accent),
+                      ),
+                    if (!notif.read)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ]),
+              ),
             ),
-            subtitle: Text(
-              timeago.format(notif.createdAt),
-              style: GoogleFonts.inter(color: subColor, fontSize: 11),
-            ),
-            trailing: notif.type == 'follow'
-                ? _buildFollowBackButton(notif.fromUid, accent)
-                : null,
-            onTap: () {
-              if (!notif.read) _firestore.markNotificationRead(notif.id);
-              if (notif.fromUid.isNotEmpty) {
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ProfileScreen(userId: notif.fromUid),
-                ));
-              }
-            },
           ),
         );
       },
@@ -158,10 +271,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: accent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          elevation: 3,
+          shadowColor: accent.withAlpha(80),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           padding: EdgeInsets.zero,
         ),
         child: Text('Follow', style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  Widget _buildShimmerLoading(bool isDark) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      itemCount: 8,
+      itemBuilder: (_, i) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const ShimmerLoading(width: 48, height: 48, isCircle: true),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  ShimmerLoading(width: 180, height: 14, borderRadius: 6),
+                  SizedBox(height: 8),
+                  ShimmerLoading(width: 100, height: 10, borderRadius: 6),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

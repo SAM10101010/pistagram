@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/follow_service.dart';
+import '../utils/animations.dart';
 import 'profile_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -84,87 +85,150 @@ class _SearchScreenState extends State<SearchScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF0D0D0D) : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
           icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 22),
         ),
-        title: TextField(
-          controller: _searchCtrl,
-          autofocus: true,
-          style: TextStyle(color: textColor),
-          decoration: InputDecoration(
-            hintText: 'Search users...',
-            hintStyle: TextStyle(color: subColor),
-            border: InputBorder.none,
+        title: Container(
+          height: 42,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(15)),
           ),
-          onSubmitted: _search,
-          onChanged: (v) {
-            if (v.isEmpty) setState(() { _results = []; _loaded = false; });
-          },
+          child: TextField(
+            controller: _searchCtrl,
+            autofocus: true,
+            style: GoogleFonts.inter(color: textColor, fontSize: 15),
+            decoration: InputDecoration(
+              hintText: 'Search users...',
+              hintStyle: GoogleFonts.inter(color: subColor, fontSize: 15),
+              prefixIcon: Icon(Icons.search_rounded, color: subColor, size: 20),
+              suffixIcon: _searchCtrl.text.isNotEmpty
+                  ? IconButton(
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        setState(() { _results = []; _loaded = false; });
+                      },
+                      icon: Icon(Icons.close_rounded, color: subColor, size: 18),
+                    )
+                  : null,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            onSubmitted: _search,
+            onChanged: (v) {
+              if (v.isEmpty) setState(() { _results = []; _loaded = false; });
+            },
+          ),
         ),
         actions: [
-          if (_searchCtrl.text.isNotEmpty)
-            IconButton(
-              onPressed: () {
-                _searchCtrl.clear();
-                setState(() { _results = []; _loaded = false; });
-              },
-              icon: Icon(Icons.clear, color: subColor),
-            ),
           IconButton(
             onPressed: () => _search(_searchCtrl.text),
-            icon: Icon(Icons.search, color: accent),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accent.withAlpha(20),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.search, color: accent, size: 20),
+            ),
           ),
         ],
       ),
       body: _searching
-          ? Center(child: CircularProgressIndicator(color: accent))
+          ? Center(child: CircularProgressIndicator(color: accent, strokeWidth: 2))
           : _loaded && _results.isEmpty
-              ? Center(child: Text('No users found', style: GoogleFonts.inter(color: subColor)))
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 72, height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[100],
+                        ),
+                        child: Icon(Icons.search_off_rounded, color: subColor, size: 36),
+                      ),
+                      const SizedBox(height: 16),
+                      Text('No users found', style: GoogleFonts.inter(color: textColor, fontSize: 16, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text('Try a different username', style: GoogleFonts.inter(color: subColor, fontSize: 13)),
+                    ],
+                  ),
+                )
               : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                   itemCount: _results.length,
                   itemBuilder: (ctx, i) {
                     final user = _results[i];
                     final isFollowing = _followingIds.contains(user.uid);
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      leading: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-                        backgroundImage: user.profilePicUrl.isNotEmpty
-                            ? CachedNetworkImageProvider(user.profilePicUrl) : null,
-                        child: user.profilePicUrl.isEmpty
-                            ? Icon(Icons.person, color: subColor) : null,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10)),
                       ),
-                      title: Text(user.username, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor)),
-                      subtitle: user.displayName.isNotEmpty
-                          ? Text(user.displayName, style: GoogleFonts.inter(color: subColor, fontSize: 13))
-                          : null,
-                      trailing: SizedBox(
-                        width: 90, height: 32,
-                        child: ElevatedButton(
-                          onPressed: () => _toggleFollow(user.uid),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isFollowing ? Colors.transparent : accent,
-                            side: isFollowing ? BorderSide(color: accent) : null,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: Text(
-                            isFollowing ? 'Following' : 'Follow',
-                            style: GoogleFonts.inter(
-                              color: isFollowing ? accent : Colors.white,
-                              fontSize: 12, fontWeight: FontWeight.w600,
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(context, SlideRightRoute(
+                          page: ProfileScreen(userId: user.uid),
+                        )),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 50, height: 50,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(colors: [accent, accent.withAlpha(150)]),
+                              ),
+                              padding: const EdgeInsets.all(2),
+                              child: CircleAvatar(
+                                backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                                backgroundImage: user.profilePicUrl.isNotEmpty
+                                    ? CachedNetworkImageProvider(user.profilePicUrl) : null,
+                                child: user.profilePicUrl.isEmpty
+                                    ? Icon(Icons.person, color: subColor, size: 22) : null,
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(user.username, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor, fontSize: 15)),
+                                  if (user.displayName.isNotEmpty)
+                                    Text(user.displayName, style: GoogleFonts.inter(color: subColor, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                            SizedBox(
+                              height: 34,
+                              child: ElevatedButton(
+                                onPressed: () => _toggleFollow(user.uid),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isFollowing ? Colors.transparent : accent,
+                                  side: isFollowing ? BorderSide(color: accent) : null,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  elevation: isFollowing ? 0 : 2,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                ),
+                                child: Text(
+                                  isFollowing ? 'Following' : 'Follow',
+                                  style: GoogleFonts.inter(
+                                    color: isFollowing ? accent : Colors.white,
+                                    fontSize: 12, fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => ProfileScreen(userId: user.uid),
-                      )),
                     );
                   },
                 ),

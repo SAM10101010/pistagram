@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../utils/animations.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/reward_model.dart';
@@ -66,7 +67,6 @@ class _MyRedemptionsScreenState extends State<MyRedemptionsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = Theme.of(context).colorScheme.primary;
     final textColor = isDark ? Colors.white : Colors.black87;
     final subColor = isDark ? Colors.white54 : Colors.black54;
     final cardColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
@@ -80,15 +80,37 @@ class _MyRedemptionsScreenState extends State<MyRedemptionsScreen> {
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: textColor), onPressed: () => Navigator.pop(context)),
       ),
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: accent))
+          ? ListView.builder(
+              padding: const EdgeInsets.all(14),
+              itemCount: 5,
+              itemBuilder: (_, __) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(14)),
+                child: Row(children: [
+                  const ShimmerLoading(width: 44, height: 44, borderRadius: 12),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+                    ShimmerLoading(width: 140, height: 14, borderRadius: 6),
+                    SizedBox(height: 8),
+                    ShimmerLoading(width: 90, height: 10, borderRadius: 6),
+                  ])),
+                  const ShimmerLoading(width: 60, height: 14, borderRadius: 6),
+                ]),
+              ),
+            )
           : _redemptions.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.card_giftcard, size: 64, color: subColor),
-                      const SizedBox(height: 12),
-                      Text('No redemptions yet', style: GoogleFonts.inter(color: subColor, fontSize: 15)),
+                      Container(
+                        width: 80, height: 80,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[100]),
+                        child: Icon(Icons.card_giftcard_rounded, size: 36, color: subColor),
+                      ),
+                      const SizedBox(height: 20),
+                      Text('No redemptions yet', style: GoogleFonts.inter(color: textColor, fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 6),
                       Text('Redeem rewards from the store!', style: GoogleFonts.inter(color: subColor, fontSize: 13)),
                     ],
@@ -103,7 +125,11 @@ class _MyRedemptionsScreenState extends State<MyRedemptionsScreen> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(14)),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10)),
+                      ),
                       child: Row(
                         children: [
                           Container(

@@ -62,7 +62,12 @@ class _ReelShareSheetState extends State<ReelShareSheet> {
                     if (!snap.hasData) return Center(child: CircularProgressIndicator(color: accent));
                     final chats = snap.data!.take(10).toList();
                     if (chats.isEmpty) {
-                      return Center(child: Text('No recent chats', style: GoogleFonts.inter(color: subColor)));
+                      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+  Container(width: 64, height: 64, decoration: BoxDecoration(shape: BoxShape.circle, color: subColor.withAlpha(20)),
+    child: Icon(Icons.chat_bubble_outline_rounded, color: subColor, size: 28)),
+  const SizedBox(height: 12),
+  Text('No recent chats', style: GoogleFonts.inter(color: subColor, fontWeight: FontWeight.w500)),
+]));
                     }
                     return ListView.builder(
                       controller: scrollController,
@@ -76,12 +81,21 @@ class _ReelShareSheetState extends State<ReelShareSheet> {
                             final user = userSnap.data;
                             if (user == null) return const SizedBox.shrink();
                             return ListTile(
-                              leading: CircleAvatar(
-                                backgroundImage: user.profilePicUrl.isNotEmpty ? CachedNetworkImageProvider(user.profilePicUrl) : null,
-                                child: user.profilePicUrl.isEmpty ? const Icon(Icons.person, size: 20) : null,
-                              ),
+                              leading: Container(
+  padding: const EdgeInsets.all(2),
+  decoration: BoxDecoration(
+    shape: BoxShape.circle,
+    gradient: LinearGradient(colors: [accent, accent.withAlpha(150)]),
+  ),
+  child: CircleAvatar(
+    radius: 20,
+    backgroundColor: bg,
+    backgroundImage: user.profilePicUrl.isNotEmpty ? CachedNetworkImageProvider(user.profilePicUrl) : null,
+    child: user.profilePicUrl.isEmpty ? const Icon(Icons.person, size: 18) : null,
+  ),
+),
                               title: Text(user.username, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor)),
-                              trailing: OutlinedButton(
+                              trailing: ElevatedButton(
                                 onPressed: () async {
                                   await _messaging.sendMessage(
                                     chatId: chat.chatId,
@@ -96,11 +110,13 @@ class _ReelShareSheetState extends State<ReelShareSheet> {
                                     Navigator.pop(context);
                                   }
                                 },
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(color: accent),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                child: Text('Send', style: GoogleFonts.inter(fontSize: 12, color: accent)),
+                                style: ElevatedButton.styleFrom(
+  backgroundColor: accent,
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+  elevation: 0,
+),
+child: Text('Send', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
                               ),
                             );
                           },
@@ -112,7 +128,11 @@ class _ReelShareSheetState extends State<ReelShareSheet> {
               ),
               Divider(color: subColor.withAlpha(40)),
               ListTile(
-                leading: Icon(Icons.link_rounded, color: textColor),
+                leading: Container(
+  width: 40, height: 40,
+  decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withAlpha(15)),
+  child: Icon(Icons.link_rounded, color: accent, size: 20),
+),
                 title: Text('Copy Link', style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: textColor)),
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: 'pistagram://reel/${widget.reelId}'));

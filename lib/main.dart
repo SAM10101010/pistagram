@@ -20,8 +20,10 @@ class PistagramApp extends StatefulWidget {
   @override
   State<PistagramApp> createState() => _PistagramAppState();
 
-  static _PistagramAppState? of(BuildContext context) {
-    return context.findAncestorStateOfType<_PistagramAppState>();
+  static ThemeProvider? of(BuildContext context) {
+    return context
+        .findAncestorStateOfType<_PistagramAppState>()
+        ?._themeProvider;
   }
 }
 
@@ -61,9 +63,7 @@ class _PistagramAppState extends State<PistagramApp> {
         secondary: secondary,
         surface: const Color(0xFF1A1A2E),
       ),
-      textTheme: GoogleFonts.interTextTheme(
-        ThemeData.dark().textTheme,
-      ),
+      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFF0D0D0D),
         elevation: 0,
@@ -83,9 +83,7 @@ class _PistagramAppState extends State<PistagramApp> {
         secondary: secondary,
         surface: Colors.white,
       ),
-      textTheme: GoogleFonts.interTextTheme(
-        ThemeData.light().textTheme,
-      ),
+      textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         elevation: 0,

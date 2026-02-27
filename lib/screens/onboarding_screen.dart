@@ -97,6 +97,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             gradient: LinearGradient(
                               colors: [accent, accent.withAlpha(150)],
                             ),
+                            boxShadow: [
+                              BoxShadow(color: accent.withAlpha(60), blurRadius: 24, spreadRadius: 4),
+                              BoxShadow(color: accent.withAlpha(30), blurRadius: 40, spreadRadius: 8),
+                            ],
                           ),
                           child: Icon(page.icon, size: 56, color: Colors.white),
                         ),
@@ -146,6 +150,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     gradient: LinearGradient(colors: [accent, HSLColor.fromColor(accent).withHue((HSLColor.fromColor(accent).hue + 40) % 360).toColor()]),
+                    boxShadow: [BoxShadow(color: accent.withAlpha(60), blurRadius: 16, offset: const Offset(0, 4))],
                   ),
                   child: ElevatedButton(
                     onPressed: () {

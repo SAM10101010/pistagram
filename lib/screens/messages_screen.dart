@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 import '../models/message_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../utils/animations.dart';
 import 'chat_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
@@ -40,6 +41,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF0D0D0D) : Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            color: isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(15),
+          ),
+        ),
         title: Text('Messages', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
@@ -50,7 +59,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         stream: _firestore.getUserChats(uid),
         builder: (ctx, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: accent));
+            return _buildShimmerList(isDark);
           }
           final chats = snap.data ?? [];
           if (chats.isEmpty) {
@@ -58,11 +67,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.chat_bubble_outline, size: 64, color: subColor),
-                  const SizedBox(height: 12),
-                  Text('No messages yet', style: GoogleFonts.inter(color: subColor, fontSize: 15)),
-                  const SizedBox(height: 4),
-                  Text('Start a conversation!', style: GoogleFonts.inter(color: subColor, fontSize: 13)),
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent.withAlpha(25),
+                    ),
+                    child: Icon(Icons.chat_bubble_outline_rounded, size: 36, color: accent),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'No messages yet',
+                    style: GoogleFonts.outfit(
+                      color: textColor,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Start a conversation with someone!',
+                    style: GoogleFonts.inter(color: subColor, fontSize: 14),
+                  ),
                 ],
               ),
             );
@@ -77,38 +104,113 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 future: _getCachedUser(otherUid),
                 builder: (ctx, userSnap) {
                   final other = userSnap.data;
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: CircleAvatar(
-                      radius: 26,
-                      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-                      backgroundImage: other != null && other.profilePicUrl.isNotEmpty
-                          ? CachedNetworkImageProvider(other.profilePicUrl) : null,
-                      child: other == null || other.profilePicUrl.isEmpty
-                          ? Icon(Icons.person, color: subColor) : null,
-                    ),
-                    title: Text(
-                      other?.username ?? 'User',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor, fontSize: 15),
-                    ),
-                    subtitle: Text(
-                      chat.lastMessage,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(color: subColor, fontSize: 13),
-                    ),
-                    trailing: Text(
-                      timeago.format(chat.lastMessageAt),
-                      style: GoogleFonts.inter(color: subColor, fontSize: 11),
-                    ),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => ChatScreen(chatId: chat.chatId, partner: other),
+                  return GestureDetector(
+                    onTap: () => Navigator.push(context, SlideRightRoute(
+                      page: ChatScreen(chatId: chat.chatId, partner: other),
                     )),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [accent, accent.withAlpha(150)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                              ),
+                              child: CircleAvatar(
+                                radius: 28,
+                                backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                                backgroundImage: other != null && other.profilePicUrl.isNotEmpty
+                                    ? CachedNetworkImageProvider(other.profilePicUrl) : null,
+                                child: other == null || other.profilePicUrl.isEmpty
+                                    ? Icon(Icons.person, color: subColor) : null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  other?.username ?? 'User',
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor, fontSize: 15),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  chat.lastMessage,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(color: subColor, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            timeago.format(chat.lastMessageAt),
+                            style: GoogleFonts.inter(color: subColor, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
                   );
                 },
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildShimmerList(bool isDark) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: 6,
+      itemBuilder: (_, i) => Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            const ShimmerLoading(width: 60, height: 60, isCircle: true),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  ShimmerLoading(width: 120, height: 14, borderRadius: 6),
+                  SizedBox(height: 8),
+                  ShimmerLoading(width: 200, height: 12, borderRadius: 6),
+                ],
+              ),
+            ),
+            const ShimmerLoading(width: 40, height: 10, borderRadius: 4),
+          ],
+        ),
       ),
     );
   }

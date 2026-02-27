@@ -10,6 +10,7 @@ import '../models/user_model.dart';
 import 'comments_screen.dart';
 import 'reel_share_sheet.dart';
 import 'profile_screen.dart';
+import '../utils/animations.dart';
 
 class ReelDetailScreen extends StatefulWidget {
   final String reelId;
@@ -120,6 +121,19 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
     return count.toString();
   }
 
+  ColorFilter? _getFilterMatrix(String filter) {
+    switch (filter) {
+      case 'warm': return const ColorFilter.matrix([1.2,0.1,0,0,10, 0,1.0,0,0,0, 0,0,0.8,0,0, 0,0,0,1,0]);
+      case 'cool': return const ColorFilter.matrix([0.8,0,0,0,0, 0,1.0,0.1,0,10, 0,0,1.2,0,10, 0,0,0,1,0]);
+      case 'sepia': return const ColorFilter.matrix([0.393,0.769,0.189,0,0, 0.349,0.686,0.168,0,0, 0.272,0.534,0.131,0,0, 0,0,0,1,0]);
+      case 'grayscale': return const ColorFilter.matrix([0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0.2126,0.7152,0.0722,0,0, 0,0,0,1,0]);
+      case 'vibrant': return const ColorFilter.matrix([1.3,0,0,0,0, 0,1.3,0,0,0, 0,0,1.3,0,0, 0,0,0,1,0]);
+      case 'fade': return const ColorFilter.matrix([1,0,0,0,30, 0,1,0,0,30, 0,0,1,0,30, 0,0,0,0.9,0]);
+      case 'noir': return const ColorFilter.matrix([0.3,0.6,0.1,0,-20, 0.3,0.6,0.1,0,-20, 0.3,0.6,0.1,0,-20, 0,0,0,1,0]);
+      default: return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -157,20 +171,69 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
                         },
                         child: AspectRatio(
                           aspectRatio: 9 / 16,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              if (_videoController != null && _videoController!.value.isInitialized)
-                                VideoPlayer(_videoController!)
-                              else
-                                Container(color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200]),
-                              if (!_isPlaying)
-                                Container(
-                                  decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
-                                  padding: const EdgeInsets.all(12),
-                                  child: const Icon(Icons.play_arrow, color: Colors.white, size: 40),
-                                ),
-                            ],
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final cw = constraints.maxWidth;
+                              final ch = constraints.maxHeight;
+                              final filter = _getFilterMatrix(_reel!.filter);
+                              Widget videoWidget = _videoController != null && _videoController!.value.isInitialized
+                                  ? VideoPlayer(_videoController!)
+                                  : Container(color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200]);
+                              if (filter != null) videoWidget = ColorFiltered(colorFilter: filter, child: videoWidget);
+                              return Stack(
+                                alignment: Alignment.center,
+                                fit: StackFit.expand,
+                                children: [
+                                  videoWidget,
+                                  if (_reel!.overlayText.isNotEmpty)
+                                    Positioned(
+                                      left: _reel!.textX * cw,
+                                      top: _reel!.textY * ch,
+                                      child: Text(
+                                        _reel!.overlayText,
+                                        style: TextStyle(
+                                          fontSize: 16 * _reel!.textScale,
+                                          color: _reel!.textColor.isNotEmpty
+                                              ? Color(int.parse(_reel!.textColor.replaceFirst('#', '0xFF')))
+                                              : Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
+                                        ),
+                                      ),
+                                    ),
+                                  ..._reel!.stickers.map((s) => Positioned(
+                                    left: (s['x'] as double) * cw,
+                                    top: (s['y'] as double) * ch,
+                                    child: Text(s['emoji'] as String, style: TextStyle(fontSize: (s['size'] as double))),
+                                  )),
+                                  if (_reel!.musicName.isNotEmpty)
+                                    Positioned(
+                                      bottom: 8,
+                                      left: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.music_note, color: Colors.white, size: 14),
+                                            const SizedBox(width: 4),
+                                            Text(_reel!.musicName, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  if (!_isPlaying)
+                                    Center(
+                                      child: Container(
+                                        decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+                                        padding: const EdgeInsets.all(12),
+                                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 40),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -180,7 +243,7 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
                         child: Row(
                           children: [
                             GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: _reel!.creatorUid))),
+                              onTap: () => Navigator.push(context, SlideRightRoute(page: ProfileScreen(userId: _reel!.creatorUid))),
                               child: CircleAvatar(
                                 radius: 20,
                                 backgroundImage: _creator != null && _creator!.profilePicUrl.isNotEmpty ? CachedNetworkImageProvider(_creator!.profilePicUrl) : null,
@@ -216,7 +279,8 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
                           children: [
                             GestureDetector(onTap: _toggleLike, child: Icon(_isLiked ? Icons.favorite : Icons.favorite_border, color: _isLiked ? accent : textColor, size: 26)),
                             const SizedBox(width: 6),
-                            Text(_formatCount(_reel!.likesCount + (_isLiked ? 1 : 0)), style: GoogleFonts.inter(fontSize: 13, color: textColor)),
+                            if (!_reel!.hideLikes)
+                              Text(_formatCount(_reel!.likesCount + (_isLiked ? 1 : 0)), style: GoogleFonts.inter(fontSize: 13, color: textColor)),
                             const SizedBox(width: 20),
                             GestureDetector(
                               onTap: () => showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => CommentsScreen(reelId: _reel!.reelId)),

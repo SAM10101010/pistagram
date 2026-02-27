@@ -20,8 +20,18 @@ class UserModel {
   final Map<String, dynamic> privacySettings;
   final List<String> deviceIds;
   final List<String> pinnedReelIds;
+  final List<String> closeFriends;
   final DateTime createdAt;
   final DateTime updatedAt;
+  // Gamification fields
+  final int lockedPoints;
+  final DateTime? lastLockReset;
+  final int totalPointsEarned;
+  final String viewerLevel;
+  final int streakCount;
+  final DateTime? lastStreakDate;
+  final int streakReelsToday;
+  final int totalWatchedReels;
 
   UserModel({
     required this.uid,
@@ -43,22 +53,41 @@ class UserModel {
     Map<String, dynamic>? privacySettings,
     List<String>? deviceIds,
     List<String>? pinnedReelIds,
+    List<String>? closeFriends,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : privacySettings = privacySettings ??
-            {
-              'hideFollowers': false,
-              'hideFollowing': false,
-              'hidePoints': false,
-              'messagesFrom': 'everyone',
-            },
-        deviceIds = deviceIds ?? [],
-        pinnedReelIds = pinnedReelIds ?? [],
-        createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+    this.lockedPoints = 0,
+    this.lastLockReset,
+    this.totalPointsEarned = 0,
+    this.viewerLevel = 'beginner',
+    this.streakCount = 0,
+    this.lastStreakDate,
+    this.streakReelsToday = 0,
+    this.totalWatchedReels = 0,
+  }) : privacySettings =
+           privacySettings ??
+           {
+             'hideFollowers': false,
+             'hideFollowing': false,
+             'hidePoints': false,
+             'messagesFrom': 'everyone',
+           },
+       deviceIds = deviceIds ?? [],
+       pinnedReelIds = pinnedReelIds ?? [],
+       closeFriends = closeFriends ?? [],
+       createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   bool get isPrivate => accountType == 'private';
   bool get isProfileComplete => username.isNotEmpty && displayName.isNotEmpty;
+  int get displayBalance => pointsBalance + lockedPoints;
+
+  static String calculateLevel(int totalPoints) {
+    if (totalPoints >= 1500) return 'elite';
+    if (totalPoints >= 500) return 'pro';
+    if (totalPoints >= 100) return 'active';
+    return 'beginner';
+  }
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
@@ -78,12 +107,20 @@ class UserModel {
       totalLikes: map['totalLikes'] ?? 0,
       pointsBalance: map['pointsBalance'] ?? 0,
       pointsVisibility: map['pointsVisibility'] ?? true,
-      privacySettings:
-          Map<String, dynamic>.from(map['privacySettings'] ?? {}),
+      privacySettings: Map<String, dynamic>.from(map['privacySettings'] ?? {}),
       deviceIds: List<String>.from(map['deviceIds'] ?? []),
       pinnedReelIds: List<String>.from(map['pinnedReelIds'] ?? []),
+      closeFriends: List<String>.from(map['closeFriends'] ?? []),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lockedPoints: map['lockedPoints'] ?? 0,
+      lastLockReset: (map['lastLockReset'] as Timestamp?)?.toDate(),
+      totalPointsEarned: map['totalPointsEarned'] ?? 0,
+      viewerLevel: map['viewerLevel'] ?? 'beginner',
+      streakCount: map['streakCount'] ?? 0,
+      lastStreakDate: (map['lastStreakDate'] as Timestamp?)?.toDate(),
+      streakReelsToday: map['streakReelsToday'] ?? 0,
+      totalWatchedReels: map['totalWatchedReels'] ?? 0,
     );
   }
 
@@ -108,8 +145,21 @@ class UserModel {
       'privacySettings': privacySettings,
       'deviceIds': deviceIds,
       'pinnedReelIds': pinnedReelIds,
+      'closeFriends': closeFriends,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'lockedPoints': lockedPoints,
+      'lastLockReset': lastLockReset != null
+          ? Timestamp.fromDate(lastLockReset!)
+          : null,
+      'totalPointsEarned': totalPointsEarned,
+      'viewerLevel': viewerLevel,
+      'streakCount': streakCount,
+      'lastStreakDate': lastStreakDate != null
+          ? Timestamp.fromDate(lastStreakDate!)
+          : null,
+      'streakReelsToday': streakReelsToday,
+      'totalWatchedReels': totalWatchedReels,
     };
   }
 
@@ -133,8 +183,17 @@ class UserModel {
     Map<String, dynamic>? privacySettings,
     List<String>? deviceIds,
     List<String>? pinnedReelIds,
+    List<String>? closeFriends,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? lockedPoints,
+    DateTime? lastLockReset,
+    int? totalPointsEarned,
+    String? viewerLevel,
+    int? streakCount,
+    DateTime? lastStreakDate,
+    int? streakReelsToday,
+    int? totalWatchedReels,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -156,8 +215,17 @@ class UserModel {
       privacySettings: privacySettings ?? this.privacySettings,
       deviceIds: deviceIds ?? this.deviceIds,
       pinnedReelIds: pinnedReelIds ?? this.pinnedReelIds,
+      closeFriends: closeFriends ?? this.closeFriends,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      lockedPoints: lockedPoints ?? this.lockedPoints,
+      lastLockReset: lastLockReset ?? this.lastLockReset,
+      totalPointsEarned: totalPointsEarned ?? this.totalPointsEarned,
+      viewerLevel: viewerLevel ?? this.viewerLevel,
+      streakCount: streakCount ?? this.streakCount,
+      lastStreakDate: lastStreakDate ?? this.lastStreakDate,
+      streakReelsToday: streakReelsToday ?? this.streakReelsToday,
+      totalWatchedReels: totalWatchedReels ?? this.totalWatchedReels,
     );
   }
 }

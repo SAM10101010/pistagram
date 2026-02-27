@@ -144,8 +144,20 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 child: Column(
                   children: [
                     // Header
-                    Icon(Icons.person_add_rounded, color: accent, size: 48),
-                    const SizedBox(height: 12),
+                    Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent.withAlpha(15),
+                        boxShadow: [
+                          BoxShadow(color: accent.withAlpha(30), blurRadius: 24, spreadRadius: 4),
+                          BoxShadow(color: accent.withAlpha(15), blurRadius: 40, spreadRadius: 8),
+                        ],
+                      ),
+                      child: Icon(Icons.person_add_rounded, size: 44, color: accent),
+                    ),
+                    const SizedBox(height: 16),
                     Text(
                       'Complete Your Profile',
                       style: GoogleFonts.outfit(

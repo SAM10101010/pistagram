@@ -116,13 +116,26 @@ class _ReportScreenState extends State<ReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.redAccent.withAlpha(15),
+              ),
+              child: const Icon(Icons.flag_rounded, color: Colors.redAccent, size: 32),
+            ),
+            const SizedBox(height: 20),
             Text('Why are you reporting this?', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
             const SizedBox(height: 6),
             Text('Select a reason that best describes the issue.', style: GoogleFonts.inter(fontSize: 13, color: subColor)),
             const SizedBox(height: 16),
 
             Container(
-              decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(14)),
+              decoration: BoxDecoration(
+  color: cardColor,
+  borderRadius: BorderRadius.circular(16),
+  border: Border.all(color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10)),
+),
               child: Column(
                 children: _reasons.asMap().entries.map((entry) {
                   final idx = entry.key;
@@ -164,15 +177,23 @@ class _ReportScreenState extends State<ReportScreen> {
             SizedBox(
               width: double.infinity,
               height: 52,
-              child: ElevatedButton(
-                onPressed: _submitting ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: const LinearGradient(colors: [Colors.redAccent, Color(0xFFE53935)]),
+                  boxShadow: [BoxShadow(color: Colors.redAccent.withAlpha(60), blurRadius: 12, offset: const Offset(0, 4))],
                 ),
+                child: ElevatedButton(
+                  onPressed: _submitting ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
                 child: _submitting
                     ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                     : Text('Submit Report', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                ),
               ),
             ),
           ],

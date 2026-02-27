@@ -86,10 +86,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
         elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text('Change Password', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: textColor), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 22), onPressed: () => Navigator.pop(context)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -98,7 +99,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           child: Column(
             children: [
               const SizedBox(height: 32),
-              Icon(Icons.lock_outline, size: 56, color: accent),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withAlpha(15),
+                  boxShadow: [
+                    BoxShadow(color: accent.withAlpha(20), blurRadius: 20, spreadRadius: 2),
+                  ],
+                ),
+                child: Icon(Icons.lock_outline, size: 36, color: accent),
+              ),
               const SizedBox(height: 24),
               Text(
                 'Enter your current password and choose a new one.',
@@ -181,6 +193,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     gradient: LinearGradient(colors: [accent, HSLColor.fromColor(accent).withHue((HSLColor.fromColor(accent).hue + 40) % 360).toColor()]),
+                    boxShadow: [BoxShadow(color: accent.withAlpha(60), blurRadius: 16, offset: const Offset(0, 4))],
                   ),
                   child: ElevatedButton(
                     onPressed: _loading ? null : _submit,

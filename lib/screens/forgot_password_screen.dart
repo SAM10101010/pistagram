@@ -64,10 +64,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
         elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text('Reset Password', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: textColor), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 22), onPressed: () => Navigator.pop(context)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -76,7 +77,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: Column(
             children: [
               const SizedBox(height: 40),
-              Icon(Icons.lock_reset_rounded, size: 64, color: accent),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withAlpha(15),
+                  boxShadow: [
+                    BoxShadow(color: accent.withAlpha(20), blurRadius: 20, spreadRadius: 2),
+                  ],
+                ),
+                child: Icon(Icons.lock_reset_rounded, size: 40, color: accent),
+              ),
               const SizedBox(height: 24),
               Text(
                 "Enter your email and we'll send you a link to reset your password.",
