@@ -20,7 +20,9 @@ class AccountManagerService {
     final json = await _storage.read(key: _storageKey);
     if (json == null) return [];
     final list = jsonDecode(json) as List;
-    return list.map((m) => SavedAccount.fromMap(m as Map<String, dynamic>)).toList();
+    return list
+        .map((m) => SavedAccount.fromMap(m as Map<String, dynamic>))
+        .toList();
   }
 
   /// Save an account after successful login
@@ -38,15 +40,19 @@ class AccountManagerService {
 
     // Enforce max accounts
     if (accounts.length >= maxAccounts) {
-      throw Exception('Maximum $maxAccounts accounts reached. Remove one first.');
+      throw Exception(
+        'Maximum $maxAccounts accounts reached. Remove one first.',
+      );
     }
 
-    accounts.add(SavedAccount(
-      uid: uid,
-      email: email,
-      displayName: displayName,
-      profilePicUrl: profilePicUrl,
-    ));
+    accounts.add(
+      SavedAccount(
+        uid: uid,
+        email: email,
+        displayName: displayName,
+        profilePicUrl: profilePicUrl,
+      ),
+    );
 
     // Save account list
     await _storage.write(

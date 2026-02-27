@@ -39,11 +39,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final uid = _auth.currentUser?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0D0D0D)
+          : const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF0D0D0D) : Colors.white,
         elevation: 0,
-        title: Text('Activity', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
+        title: Text(
+          'Activity',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
           icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 22),
@@ -55,10 +63,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               onPressed: () => _firestore.markAllNotificationsRead(uid),
               style: TextButton.styleFrom(
                 backgroundColor: accent.withAlpha(25),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
               ),
-              child: Text('Read All', style: GoogleFonts.inter(color: accent, fontSize: 13, fontWeight: FontWeight.w600)),
+              child: Text(
+                'Read All',
+                style: GoogleFonts.inter(
+                  color: accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -82,10 +102,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          accent.withAlpha(25),
-                          accent.withAlpha(8),
-                        ],
+                        colors: [accent.withAlpha(25), accent.withAlpha(8)],
                       ),
                     ),
                     child: Container(
@@ -94,13 +111,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         shape: BoxShape.circle,
                         color: accent.withAlpha(18),
                       ),
-                      child: Icon(Icons.notifications_none_rounded, size: 48, color: accent.withAlpha(150)),
+                      child: Icon(
+                        Icons.notifications_none_rounded,
+                        size: 48,
+                        color: accent.withAlpha(150),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text('No activity yet', style: GoogleFonts.outfit(color: textColor, fontSize: 18, fontWeight: FontWeight.w600)),
+                  Text(
+                    'No activity yet',
+                    style: GoogleFonts.outfit(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text('When someone interacts with you,\nyou\'ll see it here.', textAlign: TextAlign.center, style: GoogleFonts.inter(color: subColor, fontSize: 14, height: 1.5)),
+                  Text(
+                    'When someone interacts with you,\nyou\'ll see it here.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      color: subColor,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -108,42 +144,83 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           return ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: notifs.length,
-            itemBuilder: (ctx, i) => _buildNotifTile(notifs[i], accent, isDark, textColor, subColor),
+            itemBuilder: (ctx, i) =>
+                _buildNotifTile(notifs[i], accent, isDark, textColor, subColor),
           );
         },
       ),
     );
   }
 
-  Widget _buildNotifTile(NotificationModel notif, Color accent, bool isDark, Color textColor, Color subColor) {
+  Widget _buildNotifTile(
+    NotificationModel notif,
+    Color accent,
+    bool isDark,
+    Color textColor,
+    Color subColor,
+  ) {
     return FutureBuilder<UserModel?>(
       future: _getCachedUser(notif.fromUid),
       builder: (ctx, snap) {
         final sender = snap.data;
         IconData icon;
         switch (notif.type) {
-          case 'follow': icon = Icons.person_add; break;
-          case 'follow_request': icon = Icons.person_add_alt_1; break;
-          case 'like': icon = Icons.favorite; break;
-          case 'comment': icon = Icons.chat_bubble; break;
-          case 'message': icon = Icons.mail_rounded; break;
-          case 'points': icon = Icons.stars; break;
-          case 'reward': icon = Icons.card_giftcard; break;
-          case 'tag': icon = Icons.person_pin; break;
-          default: icon = Icons.notifications;
+          case 'follow':
+            icon = Icons.person_add;
+            break;
+          case 'follow_request':
+            icon = Icons.person_add_alt_1;
+            break;
+          case 'like':
+            icon = Icons.favorite;
+            break;
+          case 'comment':
+            icon = Icons.chat_bubble;
+            break;
+          case 'message':
+            icon = Icons.mail_rounded;
+            break;
+          case 'points':
+            icon = Icons.stars;
+            break;
+          case 'reward':
+            icon = Icons.card_giftcard;
+            break;
+          case 'tag':
+            icon = Icons.person_pin;
+            break;
+          default:
+            icon = Icons.notifications;
         }
 
         Color iconAccent;
         switch (notif.type) {
-          case 'follow': iconAccent = Colors.blue; break;
-          case 'follow_request': iconAccent = Colors.teal; break;
-          case 'like': iconAccent = Colors.pinkAccent; break;
-          case 'comment': iconAccent = Colors.green; break;
-          case 'message': iconAccent = Colors.deepPurple; break;
-          case 'points': iconAccent = const Color(0xFFFFD700); break;
-          case 'reward': iconAccent = Colors.amber; break;
-          case 'tag': iconAccent = Colors.orange; break;
-          default: iconAccent = accent;
+          case 'follow':
+            iconAccent = Colors.blue;
+            break;
+          case 'follow_request':
+            iconAccent = Colors.teal;
+            break;
+          case 'like':
+            iconAccent = Colors.pinkAccent;
+            break;
+          case 'comment':
+            iconAccent = Colors.green;
+            break;
+          case 'message':
+            iconAccent = Colors.deepPurple;
+            break;
+          case 'points':
+            iconAccent = const Color(0xFFFFD700);
+            break;
+          case 'reward':
+            iconAccent = Colors.amber;
+            break;
+          case 'tag':
+            iconAccent = Colors.orange;
+            break;
+          default:
+            iconAccent = accent;
         }
 
         return Container(
@@ -152,7 +229,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10),
+              color: isDark
+                  ? Colors.white.withAlpha(10)
+                  : Colors.black.withAlpha(10),
             ),
             boxShadow: [
               if (!isDark)
@@ -171,13 +250,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               onTap: () {
                 if (!notif.read) _firestore.markNotificationRead(notif.id);
                 if (notif.fromUid.isNotEmpty) {
-                  Navigator.push(context, SlideRightRoute(
-                    page: ProfileScreen(userId: notif.fromUid),
-                  ));
+                  Navigator.push(
+                    context,
+                    SlideRightRoute(page: ProfileScreen(userId: notif.fromUid)),
+                  );
                 }
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Stack(
@@ -185,11 +268,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       children: [
                         CircleAvatar(
                           radius: 24,
-                          backgroundColor: isDark ? const Color(0xFF252540) : Colors.grey[200],
-                          backgroundImage: sender != null && sender.profilePicUrl.isNotEmpty
-                              ? CachedNetworkImageProvider(sender.profilePicUrl) : null,
+                          backgroundColor: isDark
+                              ? const Color(0xFF252540)
+                              : Colors.grey[200],
+                          backgroundImage:
+                              sender != null && sender.profilePicUrl.isNotEmpty
+                              ? CachedNetworkImageProvider(sender.profilePicUrl)
+                              : null,
                           child: sender == null || sender.profilePicUrl.isEmpty
-                              ? Icon(icon, color: iconAccent, size: 22) : null,
+                              ? Icon(icon, color: iconAccent, size: 22)
+                              : null,
                         ),
                         Positioned(
                           right: -4,
@@ -200,7 +288,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               color: iconAccent.withAlpha(30),
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                                color: isDark
+                                    ? const Color(0xFF1A1A2E)
+                                    : Colors.white,
                                 width: 2,
                               ),
                             ),
@@ -215,21 +305,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           RichText(
-                            text: TextSpan(children: [
-                              TextSpan(
-                                text: sender?.username ?? 'Someone',
-                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: textColor),
-                              ),
-                              TextSpan(
-                                text: ' ${notif.message}',
-                                style: GoogleFonts.inter(fontSize: 14, color: textColor),
-                              ),
-                            ]),
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: sender?.username ?? 'Someone',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color: textColor,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' ${notif.message}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             timeago.format(notif.createdAt),
-                            style: GoogleFonts.inter(color: subColor, fontSize: 11),
+                            style: GoogleFonts.inter(
+                              color: subColor,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
@@ -242,7 +344,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     if (notif.type == 'follow_request')
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
-                        child: _buildFollowRequestButtons(notif, accent, isDark),
+                        child: _buildFollowRequestButtons(
+                          notif,
+                          accent,
+                          isDark,
+                        ),
                       ),
                     if (!notif.read)
                       Padding(
@@ -276,7 +382,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           await _followService.followUser(uid, targetUid);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Following!'), behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 1)),
+              SnackBar(
+                content: Text('Following!'),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 1),
+              ),
             );
           }
         },
@@ -284,15 +394,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           backgroundColor: accent,
           elevation: 3,
           shadowColor: accent.withAlpha(80),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           padding: EdgeInsets.zero,
         ),
-        child: Text('Follow', style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+        child: Text(
+          'Follow',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildFollowRequestButtons(NotificationModel notif, Color accent, bool isDark) {
+  Widget _buildFollowRequestButtons(
+    NotificationModel notif,
+    Color accent,
+    bool isDark,
+  ) {
     final subColor = isDark ? Colors.white54 : Colors.black54;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -306,17 +429,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               await _firestore.markNotificationRead(notif.id);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: const Text('Request accepted'), behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 1)),
+                  SnackBar(
+                    content: const Text('Request accepted'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 1),
+                  ),
                 );
               }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: accent,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
-            child: Text('Accept', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Accept',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 6),
@@ -330,10 +466,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             },
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: subColor.withAlpha(80)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
-            child: Text('Reject', style: GoogleFonts.inter(fontSize: 11, color: subColor)),
+            child: Text(
+              'Reject',
+              style: GoogleFonts.inter(fontSize: 11, color: subColor),
+            ),
           ),
         ),
       ],

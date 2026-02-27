@@ -63,7 +63,9 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
         SnackBar(
           content: const Text('Request accepted'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -87,71 +89,117 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
     final subColor = isDark ? Colors.white54 : Colors.black54;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0D0D0D)
+          : const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('Follow Requests', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: textColor), onPressed: () => Navigator.pop(context)),
+        title: Text(
+          'Follow Requests',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: accent))
           : _requesters.isEmpty
-              ? Center(
-                  child: Column(
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person_add_disabled, size: 64, color: subColor),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No pending requests',
+                    style: GoogleFonts.inter(color: subColor, fontSize: 15),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              itemCount: _requesters.length,
+              itemBuilder: (ctx, i) {
+                final user = _requesters[i];
+                return ListTile(
+                  onTap: () => Navigator.push(
+                    context,
+                    SlideRightRoute(page: ProfileScreen(userId: user.uid)),
+                  ),
+                  leading: CircleAvatar(
+                    backgroundImage: user.profilePicUrl.isNotEmpty
+                        ? CachedNetworkImageProvider(user.profilePicUrl)
+                        : null,
+                    child: user.profilePicUrl.isEmpty
+                        ? const Icon(Icons.person, size: 20)
+                        : null,
+                  ),
+                  title: Text(
+                    user.username,
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  subtitle: Text(
+                    user.displayName,
+                    style: GoogleFonts.inter(color: subColor, fontSize: 13),
+                  ),
+                  trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.person_add_disabled, size: 64, color: subColor),
-                      const SizedBox(height: 12),
-                      Text('No pending requests', style: GoogleFonts.inter(color: subColor, fontSize: 15)),
+                      SizedBox(
+                        height: 34,
+                        child: ElevatedButton(
+                          onPressed: () => _accept(user.uid),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          child: Text(
+                            'Accept',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 34,
+                        child: OutlinedButton(
+                          onPressed: () => _reject(user.uid),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: subColor.withAlpha(80)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          child: Text(
+                            'Reject',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: subColor,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                )
-              : ListView.builder(
-                  itemCount: _requesters.length,
-                  itemBuilder: (ctx, i) {
-                    final user = _requesters[i];
-                    return ListTile(
-                      onTap: () => Navigator.push(context, SlideRightRoute(page: ProfileScreen(userId: user.uid))),
-                      leading: CircleAvatar(
-                        backgroundImage: user.profilePicUrl.isNotEmpty ? CachedNetworkImageProvider(user.profilePicUrl) : null,
-                        child: user.profilePicUrl.isEmpty ? const Icon(Icons.person, size: 20) : null,
-                      ),
-                      title: Text(user.username, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor)),
-                      subtitle: Text(user.displayName, style: GoogleFonts.inter(color: subColor, fontSize: 13)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            height: 34,
-                            child: ElevatedButton(
-                              onPressed: () => _accept(user.uid),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: accent,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                              ),
-                              child: Text('Accept', style: GoogleFonts.inter(fontSize: 12, color: Colors.white)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            height: 34,
-                            child: OutlinedButton(
-                              onPressed: () => _reject(user.uid),
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: subColor.withAlpha(80)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                              ),
-                              child: Text('Reject', style: GoogleFonts.inter(fontSize: 12, color: subColor)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                );
+              },
+            ),
     );
   }
 }

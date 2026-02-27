@@ -17,9 +17,13 @@ class MessagingService {
     // Check messaging privacy settings
     final otherUser = await _firestoreService.getUser(otherUid);
     if (otherUser != null) {
-      final messagesFrom = otherUser.privacySettings['messagesFrom'] ?? 'everyone';
+      final messagesFrom =
+          otherUser.privacySettings['messagesFrom'] ?? 'everyone';
       if (messagesFrom == 'followers') {
-        final isFollower = await _firestoreService.getFollow(currentUid, otherUid);
+        final isFollower = await _firestoreService.getFollow(
+          currentUid,
+          otherUid,
+        );
         if (isFollower == null || isFollower.status != 'accepted') {
           throw Exception('This user only accepts messages from followers');
         }
@@ -54,13 +58,15 @@ class MessagingService {
         orElse: () => '',
       );
       if (receiverUid.isNotEmpty) {
-        await _firestoreService.addNotification(NotificationModel(
-          id: 'msg_${chatId}_$senderUid',
-          toUid: receiverUid,
-          fromUid: senderUid,
-          type: 'message',
-          message: 'sent you a message',
-        ));
+        await _firestoreService.addNotification(
+          NotificationModel(
+            id: 'msg_${chatId}_$senderUid',
+            toUid: receiverUid,
+            fromUid: senderUid,
+            type: 'message',
+            message: 'sent you a message',
+          ),
+        );
       }
     }
   }

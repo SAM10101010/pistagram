@@ -4,7 +4,8 @@ class NotificationModel {
   final String id;
   final String toUid;
   final String fromUid;
-  final String type; // follow, follow_request, like, comment, message, points, reward
+  final String
+  type; // follow, follow_request, like, comment, message, points, reward
   final String reelId;
   final String postId;
   final String message;

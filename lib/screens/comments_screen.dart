@@ -13,7 +13,12 @@ class CommentsScreen extends StatefulWidget {
   final String reelId;
   final bool isPost;
   final String? creatorUid;
-  const CommentsScreen({super.key, required this.reelId, this.isPost = false, this.creatorUid});
+  const CommentsScreen({
+    super.key,
+    required this.reelId,
+    this.isPost = false,
+    this.creatorUid,
+  });
 
   @override
   State<CommentsScreen> createState() => _CommentsScreenState();
@@ -85,13 +90,24 @@ class _CommentsScreenState extends State<CommentsScreen> {
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2)),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text('Comments', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: textColor)),
+            child: Text(
+              'Comments',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: textColor,
+              ),
+            ),
           ),
           Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
 
@@ -105,16 +121,38 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: 5,
                     itemBuilder: (_, __) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      child: Row(children: [
-                        const ShimmerLoading(width: 32, height: 32, isCircle: true),
-                        const SizedBox(width: 10),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
-                          ShimmerLoading(width: 160, height: 12, borderRadius: 6),
-                          SizedBox(height: 6),
-                          ShimmerLoading(width: 80, height: 10, borderRadius: 6),
-                        ])),
-                      ]),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        children: [
+                          const ShimmerLoading(
+                            width: 32,
+                            height: 32,
+                            isCircle: true,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                ShimmerLoading(
+                                  width: 160,
+                                  height: 12,
+                                  borderRadius: 6,
+                                ),
+                                SizedBox(height: 6),
+                                ShimmerLoading(
+                                  width: 80,
+                                  height: 10,
+                                  borderRadius: 6,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -125,14 +163,36 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 64, height: 64,
-                          decoration: BoxDecoration(shape: BoxShape.circle, color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[100]),
-                          child: Icon(Icons.chat_bubble_outline, color: subColor, size: 28),
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDark
+                                ? const Color(0xFF0D0D0D)
+                                : Colors.grey[100],
+                          ),
+                          child: Icon(
+                            Icons.chat_bubble_outline,
+                            color: subColor,
+                            size: 28,
+                          ),
                         ),
                         const SizedBox(height: 12),
-                        Text('No comments yet', style: GoogleFonts.inter(color: subColor, fontWeight: FontWeight.w500)),
+                        Text(
+                          'No comments yet',
+                          style: GoogleFonts.inter(
+                            color: subColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text('Be the first to comment!', style: GoogleFonts.inter(color: subColor, fontSize: 12)),
+                        Text(
+                          'Be the first to comment!',
+                          style: GoogleFonts.inter(
+                            color: subColor,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -140,7 +200,14 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: comments.length,
-                  itemBuilder: (ctx, i) => _buildCommentTile(comments[i], uid, accent, isDark, textColor, subColor),
+                  itemBuilder: (ctx, i) => _buildCommentTile(
+                    comments[i],
+                    uid,
+                    accent,
+                    isDark,
+                    textColor,
+                    subColor,
+                  ),
                 );
               },
             ),
@@ -149,12 +216,20 @@ class _CommentsScreenState extends State<CommentsScreen> {
           // Comment input
           Container(
             padding: EdgeInsets.only(
-              left: 16, right: 8, top: 8,
+              left: 16,
+              right: 8,
+              top: 8,
               bottom: MediaQuery.of(context).viewInsets.bottom + 8,
             ),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[50],
-              border: Border(top: BorderSide(color: isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(15))),
+              border: Border(
+                top: BorderSide(
+                  color: isDark
+                      ? Colors.white.withAlpha(15)
+                      : Colors.black.withAlpha(15),
+                ),
+              ),
             ),
             child: Row(
               children: [
@@ -173,8 +248,15 @@ class _CommentsScreenState extends State<CommentsScreen> {
                   onPressed: _postComment,
                   icon: Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: accent),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 16),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent,
+                    ),
+                    child: const Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                   ),
                 ),
               ],
@@ -185,7 +267,14 @@ class _CommentsScreenState extends State<CommentsScreen> {
     );
   }
 
-  Widget _buildCommentTile(CommentModel comment, String myUid, Color accent, bool isDark, Color textColor, Color subColor) {
+  Widget _buildCommentTile(
+    CommentModel comment,
+    String myUid,
+    Color accent,
+    bool isDark,
+    Color textColor,
+    Color subColor,
+  ) {
     return FutureBuilder<UserModel?>(
       future: _getCachedUser(comment.uid),
       builder: (ctx, snap) {
@@ -200,9 +289,11 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 radius: 16,
                 backgroundColor: isDark ? Colors.white12 : Colors.grey[200],
                 backgroundImage: user != null && user.profilePicUrl.isNotEmpty
-                    ? CachedNetworkImageProvider(user.profilePicUrl) : null,
+                    ? CachedNetworkImageProvider(user.profilePicUrl)
+                    : null,
                 child: user == null || user.profilePicUrl.isEmpty
-                    ? Icon(Icons.person, size: 16, color: subColor) : null,
+                    ? Icon(Icons.person, size: 16, color: subColor)
+                    : null,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -210,16 +301,25 @@ class _CommentsScreenState extends State<CommentsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     RichText(
-                      text: TextSpan(children: [
-                        TextSpan(
-                          text: '${user?.username ?? 'user'} ',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: textColor),
-                        ),
-                        TextSpan(
-                          text: comment.text,
-                          style: GoogleFonts.inter(fontSize: 13, color: textColor),
-                        ),
-                      ]),
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${user?.username ?? 'user'} ',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: textColor,
+                            ),
+                          ),
+                          TextSpan(
+                            text: comment.text,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: textColor,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -232,9 +332,16 @@ class _CommentsScreenState extends State<CommentsScreen> {
               if (isOwn)
                 IconButton(
                   onPressed: () => _deleteComment(comment),
-                  icon: Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                    size: 18,
+                  ),
                   iconSize: 18,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   padding: EdgeInsets.zero,
                 ),
             ],

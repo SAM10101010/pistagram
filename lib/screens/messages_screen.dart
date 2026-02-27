@@ -37,7 +37,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final uid = _auth.currentUser?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0D0D0D)
+          : const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF0D0D0D) : Colors.white,
         elevation: 0,
@@ -46,10 +48,18 @@ class _MessagesScreenState extends State<MessagesScreen> {
           preferredSize: const Size.fromHeight(1),
           child: Container(
             height: 1,
-            color: isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(15),
+            color: isDark
+                ? Colors.white.withAlpha(15)
+                : Colors.black.withAlpha(15),
           ),
         ),
-        title: Text('Messages', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
+        title: Text(
+          'Messages',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
           icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 22),
@@ -75,7 +85,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: () => setState(() {}),
-                    child: Text('Retry', style: GoogleFonts.inter(color: accent)),
+                    child: Text(
+                      'Retry',
+                      style: GoogleFonts.inter(color: accent),
+                    ),
                   ),
                 ],
               ),
@@ -94,7 +107,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       shape: BoxShape.circle,
                       color: accent.withAlpha(25),
                     ),
-                    child: Icon(Icons.chat_bubble_outline_rounded, size: 36, color: accent),
+                    child: Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 36,
+                      color: accent,
+                    ),
                   ),
                   const SizedBox(height: 20),
                   Text(
@@ -119,23 +136,34 @@ class _MessagesScreenState extends State<MessagesScreen> {
             itemCount: chats.length,
             itemBuilder: (ctx, i) {
               final chat = chats[i];
-              final otherUid = chat.participants.firstWhere((p) => p != uid, orElse: () => '');
+              final otherUid = chat.participants.firstWhere(
+                (p) => p != uid,
+                orElse: () => '',
+              );
               return FutureBuilder<UserModel?>(
                 future: _getCachedUser(otherUid),
                 builder: (ctx, userSnap) {
                   final other = userSnap.data;
                   return GestureDetector(
-                    onTap: () => Navigator.push(context, SlideRightRoute(
-                      page: ChatScreen(chatId: chat.chatId, partner: other),
-                    )),
+                    onTap: () => Navigator.push(
+                      context,
+                      SlideRightRoute(
+                        page: ChatScreen(chatId: chat.chatId, partner: other),
+                      ),
+                    ),
                     child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(10),
+                          color: isDark
+                              ? Colors.white.withAlpha(10)
+                              : Colors.black.withAlpha(10),
                         ),
                       ),
                       child: Row(
@@ -154,15 +182,26 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                                color: isDark
+                                    ? const Color(0xFF1A1A2E)
+                                    : Colors.white,
                               ),
                               child: CircleAvatar(
                                 radius: 28,
-                                backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
-                                backgroundImage: other != null && other.profilePicUrl.isNotEmpty
-                                    ? CachedNetworkImageProvider(other.profilePicUrl) : null,
-                                child: other == null || other.profilePicUrl.isEmpty
-                                    ? Icon(Icons.person, color: subColor) : null,
+                                backgroundColor: isDark
+                                    ? const Color(0xFF1A1A2E)
+                                    : Colors.grey[200],
+                                backgroundImage:
+                                    other != null &&
+                                        other.profilePicUrl.isNotEmpty
+                                    ? CachedNetworkImageProvider(
+                                        other.profilePicUrl,
+                                      )
+                                    : null,
+                                child:
+                                    other == null || other.profilePicUrl.isEmpty
+                                    ? Icon(Icons.person, color: subColor)
+                                    : null,
                               ),
                             ),
                           ),
@@ -173,14 +212,21 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               children: [
                                 Text(
                                   other?.username ?? 'User',
-                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textColor, fontSize: 15),
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
+                                    fontSize: 15,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   chat.lastMessage,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(color: subColor, fontSize: 13),
+                                  style: GoogleFonts.inter(
+                                    color: subColor,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             ),
@@ -188,7 +234,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           const SizedBox(width: 8),
                           Text(
                             timeago.format(chat.lastMessageAt),
-                            style: GoogleFonts.inter(color: subColor, fontSize: 11),
+                            style: GoogleFonts.inter(
+                              color: subColor,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
