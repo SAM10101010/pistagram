@@ -87,4 +87,16 @@ class MessagingService {
     if (otherUid.isEmpty) return null;
     return await _firestoreService.getUser(otherUid);
   }
+
+  Future<void> deleteMessage(String chatId, String messageId) async {
+    await _firestoreService.deleteMessage(chatId, messageId);
+  }
+
+  Future<void> editMessage(
+    String chatId,
+    String messageId,
+    String newText,
+  ) async {
+    await _firestoreService.updateMessage(chatId, messageId, newText);
+  }
 }

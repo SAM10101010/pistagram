@@ -19,6 +19,7 @@ class UserModel {
   final bool pointsVisibility;
   final Map<String, dynamic> privacySettings;
   final List<String> deviceIds;
+  final List<String> fcmTokens;
   final List<String> pinnedReelIds;
   final List<String> closeFriends;
   final DateTime createdAt;
@@ -52,6 +53,7 @@ class UserModel {
     this.pointsVisibility = true,
     Map<String, dynamic>? privacySettings,
     List<String>? deviceIds,
+    List<String>? fcmTokens,
     List<String>? pinnedReelIds,
     List<String>? closeFriends,
     DateTime? createdAt,
@@ -73,6 +75,7 @@ class UserModel {
              'messagesFrom': 'everyone',
            },
        deviceIds = deviceIds ?? [],
+       fcmTokens = fcmTokens ?? [],
        pinnedReelIds = pinnedReelIds ?? [],
        closeFriends = closeFriends ?? [],
        createdAt = createdAt ?? DateTime.now(),
@@ -109,6 +112,7 @@ class UserModel {
       pointsVisibility: map['pointsVisibility'] ?? true,
       privacySettings: Map<String, dynamic>.from(map['privacySettings'] ?? {}),
       deviceIds: List<String>.from(map['deviceIds'] ?? []),
+      fcmTokens: List<String>.from(map['fcmTokens'] ?? []),
       pinnedReelIds: List<String>.from(map['pinnedReelIds'] ?? []),
       closeFriends: List<String>.from(map['closeFriends'] ?? []),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -144,6 +148,7 @@ class UserModel {
       'pointsVisibility': pointsVisibility,
       'privacySettings': privacySettings,
       'deviceIds': deviceIds,
+      'fcmTokens': fcmTokens,
       'pinnedReelIds': pinnedReelIds,
       'closeFriends': closeFriends,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -182,6 +187,7 @@ class UserModel {
     bool? pointsVisibility,
     Map<String, dynamic>? privacySettings,
     List<String>? deviceIds,
+    List<String>? fcmTokens,
     List<String>? pinnedReelIds,
     List<String>? closeFriends,
     DateTime? createdAt,
@@ -214,6 +220,7 @@ class UserModel {
       pointsVisibility: pointsVisibility ?? this.pointsVisibility,
       privacySettings: privacySettings ?? this.privacySettings,
       deviceIds: deviceIds ?? this.deviceIds,
+      fcmTokens: fcmTokens ?? this.fcmTokens,
       pinnedReelIds: pinnedReelIds ?? this.pinnedReelIds,
       closeFriends: closeFriends ?? this.closeFriends,
       createdAt: createdAt ?? this.createdAt,

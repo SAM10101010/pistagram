@@ -6,6 +6,7 @@ class MessageModel {
   final String senderUid;
   final String text;
   final String mediaUrl;
+  final bool isEdited;
   final DateTime? readAt;
   final DateTime createdAt;
 
@@ -15,6 +16,7 @@ class MessageModel {
     required this.senderUid,
     this.text = '',
     this.mediaUrl = '',
+    this.isEdited = false,
     this.readAt,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -26,6 +28,7 @@ class MessageModel {
       senderUid: map['senderUid'] ?? '',
       text: map['text'] ?? '',
       mediaUrl: map['mediaUrl'] ?? '',
+      isEdited: map['isEdited'] ?? false,
       readAt: (map['readAt'] as Timestamp?)?.toDate(),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -38,6 +41,7 @@ class MessageModel {
       'senderUid': senderUid,
       'text': text,
       'mediaUrl': mediaUrl,
+      'isEdited': isEdited,
       'readAt': readAt != null ? Timestamp.fromDate(readAt!) : null,
       'createdAt': Timestamp.fromDate(createdAt),
     };
@@ -59,8 +63,8 @@ class ChatModel {
     this.lastSenderUid = '',
     DateTime? lastMessageAt,
     DateTime? createdAt,
-  })  : lastMessageAt = lastMessageAt ?? DateTime.now(),
-        createdAt = createdAt ?? DateTime.now();
+  }) : lastMessageAt = lastMessageAt ?? DateTime.now(),
+       createdAt = createdAt ?? DateTime.now();
 
   factory ChatModel.fromMap(Map<String, dynamic> map) {
     return ChatModel(

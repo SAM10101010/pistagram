@@ -4,22 +4,24 @@ class StoryModel {
   final String storyId;
   final String creatorUid;
   final String mediaUrl;
-  final String mediaType;         // 'image' or 'video'
+  final String mediaType; // 'image' or 'video'
   final String cloudinaryId;
-  final String text;              // Text overlay content
-  final double textX;             // Text position X (0.0 - 1.0)
-  final double textY;             // Text position Y (0.0 - 1.0)
-  final double textScale;         // Text scale factor
-  final String textColor;         // Hex color
-  final String filter;            // Filter name applied
+  final String text; // Text overlay content
+  final double textX; // Text position X (0.0 - 1.0)
+  final double textY; // Text position Y (0.0 - 1.0)
+  final double textScale; // Text scale factor
+  final String textColor; // Hex color
+  final String filter; // Filter name applied
   final List<Map<String, dynamic>> stickers; // [{emoji, x, y, size}]
-  final String audience;          // 'everyone' or 'close_friends'
+  final String audience; // 'everyone' or 'close_friends'
   final String musicUrl;
   final String musicName;
   final List<String> viewerUids;
   final int viewCount;
+  final int likesCount;
+  final List<String> likedByUids;
   final DateTime createdAt;
-  final DateTime expiresAt;       // 24h after creation
+  final DateTime expiresAt; // 24h after creation
 
   StoryModel({
     required this.storyId,
@@ -39,10 +41,12 @@ class StoryModel {
     this.musicName = '',
     this.viewerUids = const [],
     this.viewCount = 0,
+    this.likesCount = 0,
+    this.likedByUids = const [],
     DateTime? createdAt,
     DateTime? expiresAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        expiresAt = expiresAt ?? DateTime.now().add(const Duration(hours: 24));
+  }) : createdAt = createdAt ?? DateTime.now(),
+       expiresAt = expiresAt ?? DateTime.now().add(const Duration(hours: 24));
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 
@@ -65,8 +69,12 @@ class StoryModel {
       musicName: map['musicName'] ?? '',
       viewerUids: List<String>.from(map['viewerUids'] ?? []),
       viewCount: map['viewCount'] ?? 0,
+      likesCount: map['likesCount'] ?? 0,
+      likedByUids: List<String>.from(map['likedByUids'] ?? []),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      expiresAt: (map['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now().add(const Duration(hours: 24)),
+      expiresAt:
+          (map['expiresAt'] as Timestamp?)?.toDate() ??
+          DateTime.now().add(const Duration(hours: 24)),
     );
   }
 
@@ -89,6 +97,8 @@ class StoryModel {
       'musicName': musicName,
       'viewerUids': viewerUids,
       'viewCount': viewCount,
+      'likesCount': likesCount,
+      'likedByUids': likedByUids,
       'createdAt': Timestamp.fromDate(createdAt),
       'expiresAt': Timestamp.fromDate(expiresAt),
     };
@@ -112,6 +122,8 @@ class StoryModel {
     String? musicName,
     List<String>? viewerUids,
     int? viewCount,
+    int? likesCount,
+    List<String>? likedByUids,
     DateTime? createdAt,
     DateTime? expiresAt,
   }) {
@@ -133,6 +145,8 @@ class StoryModel {
       musicName: musicName ?? this.musicName,
       viewerUids: viewerUids ?? this.viewerUids,
       viewCount: viewCount ?? this.viewCount,
+      likesCount: likesCount ?? this.likesCount,
+      likedByUids: likedByUids ?? this.likedByUids,
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
     );

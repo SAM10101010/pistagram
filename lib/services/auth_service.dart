@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import 'firestore_service.dart';
+import 'push_notification_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -55,6 +56,7 @@ class AuthService {
       email: email,
     );
     await _firestoreService.createUser(user);
+    await PushNotificationService.saveToken(cred.user!.uid);
     return cred;
   }
 
@@ -116,6 +118,7 @@ class AuthService {
         profilePicUrl: cred.user!.photoURL ?? '',
       );
       await _firestoreService.createUser(user);
+      await PushNotificationService.saveToken(cred.user!.uid);
     } else {
       // Check account status
       if (existingUser.accountStatus == 'suspended') {
@@ -128,6 +131,7 @@ class AuthService {
       }
       // Track device
       await _trackDevice(existingUser.uid);
+      await PushNotificationService.saveToken(existingUser.uid);
     }
 
     return cred;
@@ -164,6 +168,7 @@ class AuthService {
       }
       // Track device
       await _trackDevice(profile.uid);
+      await PushNotificationService.saveToken(cred.user!.uid);
     }
 
     return cred;
@@ -187,6 +192,10 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    final uid = currentUser?.uid;
+    if (uid != null) {
+      await PushNotificationService.removeToken(uid);
+    }
     await _googleSignIn.signOut();
     await _auth.signOut();
   }

@@ -43,7 +43,7 @@ function getRandomReward(): { value: number; label: string } {
 
 export const openMysteryBox = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
-    throw new functions.HttpsError('unauthenticated', 'Must be logged in');
+    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
   }
 
   const uid = context.auth.uid;
@@ -58,18 +58,18 @@ export const openMysteryBox = functions.https.onCall(async (data, context) => {
     .get();
 
   if (todayBoxes.size >= MAX_PER_DAY) {
-    throw new functions.HttpsError('resource-exhausted', 'Daily limit reached (3 per day)');
+    throw new functions.https.HttpsError('resource-exhausted', 'Daily limit reached (3 per day)');
   }
 
   // Check balance
   const userDoc = await db.collection('users').doc(uid).get();
   if (!userDoc.exists) {
-    throw new functions.HttpsError('not-found', 'User not found');
+    throw new functions.https.HttpsError('not-found', 'User not found');
   }
 
   const balance = userDoc.data()?.pointsBalance || 0;
   if (balance < COST) {
-    throw new functions.HttpsError('failed-precondition', 'Insufficient points');
+    throw new functions.https.HttpsError('failed-precondition', 'Insufficient points');
   }
 
   // Generate reward

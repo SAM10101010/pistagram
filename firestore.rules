@@ -40,6 +40,12 @@ service cloud.firestore {
       allow create: if isAuth() && request.auth.uid == request.resource.data.creatorUid;
       allow update: if isAuth();
       allow delete: if isAuth();
+
+      match /comments/{commentId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow delete: if isAuth();
+      }
     }
 
     // ── Follows ──
@@ -104,8 +110,8 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isAuth();
         allow create: if isAuth();
-        allow update: if false;
-        allow delete: if false;
+        allow update: if isAuth();
+        allow delete: if isAuth();
       }
     }
 

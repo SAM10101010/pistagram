@@ -9,6 +9,8 @@ import '../services/firestore_service.dart';
 import '../utils/animations.dart';
 import 'comments_screen.dart';
 import 'profile_screen.dart';
+import 'share_post_chat_screen.dart';
+import 'post_likes_screen.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final PostModel post;
@@ -31,11 +33,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _isLiked = false;
   int _likesCount = 0;
   int _currentPage = 0;
+  bool _hideLikes = false;
+  bool _hideComments = false;
+  bool _allowComments = true;
+  String _visibility = 'public';
 
   @override
   void initState() {
     super.initState();
     _likesCount = widget.post.likesCount;
+    _hideLikes = widget.post.hideLikes;
+    _hideComments = widget.post.hideComments;
+    _allowComments = widget.post.allowComments;
+    _visibility = widget.post.visibility;
     _checkLikeStatus();
   }
 
@@ -86,6 +96,193 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         Navigator.pop(context, true);
       }
     }
+  }
+
+  void _showPostSettingsSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = Theme.of(context).colorScheme.primary;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? Colors.white54 : Colors.black54;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: subColor.withAlpha(80),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Text(
+                  'Post Settings',
+                  style: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                secondary: Icon(Icons.favorite_border, color: accent),
+                title: Text(
+                  'Hide Like Count',
+                  style: GoogleFonts.inter(
+                    color: textColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                value: _hideLikes,
+                activeColor: accent,
+                onChanged: (v) async {
+                  await _firestore.updatePost(
+                    widget.post.postId,
+                    {'hideLikes': v},
+                  );
+                  setState(() => _hideLikes = v);
+                  setSheetState(() {});
+                },
+              ),
+              SwitchListTile(
+                secondary: Icon(Icons.comment_outlined, color: accent),
+                title: Text(
+                  'Hide Comments',
+                  style: GoogleFonts.inter(
+                    color: textColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                value: _hideComments,
+                activeColor: accent,
+                onChanged: (v) async {
+                  await _firestore.updatePost(
+                    widget.post.postId,
+                    {'hideComments': v},
+                  );
+                  setState(() => _hideComments = v);
+                  setSheetState(() {});
+                },
+              ),
+              SwitchListTile(
+                secondary: Icon(Icons.chat_bubble_outline, color: accent),
+                title: Text(
+                  'Allow Comments',
+                  style: GoogleFonts.inter(
+                    color: textColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                value: _allowComments,
+                activeColor: accent,
+                onChanged: (v) async {
+                  await _firestore.updatePost(
+                    widget.post.postId,
+                    {'allowComments': v},
+                  );
+                  setState(() => _allowComments = v);
+                  setSheetState(() {});
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.visibility_outlined, color: accent),
+                title: Text(
+                  'Change Visibility',
+                  style: GoogleFonts.inter(
+                    color: textColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: Text(
+                  'Currently: $_visibility',
+                  style: GoogleFonts.inter(color: subColor, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showVisibilityPicker();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showVisibilityPicker() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = Theme.of(context).colorScheme.primary;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            for (final v in ['public', 'followers', 'private'])
+              ListTile(
+                leading: Icon(
+                  v == 'public'
+                      ? Icons.public
+                      : v == 'followers'
+                          ? Icons.people
+                          : Icons.lock,
+                  color: _visibility == v
+                      ? accent
+                      : (isDark ? Colors.white38 : Colors.black38),
+                ),
+                title: Text(
+                  v[0].toUpperCase() + v.substring(1),
+                  style: GoogleFonts.inter(
+                    color: textColor,
+                    fontWeight:
+                        _visibility == v ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+                trailing: _visibility == v
+                    ? Icon(Icons.check_circle, color: accent)
+                    : null,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _firestore.updatePost(
+                    widget.post.postId,
+                    {'visibility': v},
+                  );
+                  setState(() => _visibility = v);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   ColorFilter? _getFilterMatrix(String filter) {
@@ -344,6 +541,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         centerTitle: true,
         actions: [
           if (widget.isOwn)
+            IconButton(
+              icon: Icon(Icons.settings_outlined, color: textColor),
+              onPressed: _showPostSettingsSheet,
+            ),
+          if (widget.isOwn)
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, color: textColor),
               onSelected: (v) {
@@ -562,20 +764,38 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                   const SizedBox(width: 16),
                   GestureDetector(
-                    onTap: () => showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => CommentsScreen(
-                        reelId: post.postId,
-                        isPost: true,
-                        creatorUid: post.creatorUid,
+                    onTap: (_allowComments || widget.isOwn)
+                        ? () => showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => CommentsScreen(
+                                reelId: post.postId,
+                                isPost: true,
+                                creatorUid: post.creatorUid,
+                              ),
+                            )
+                        : null,
+                    child: Icon(
+                      Icons.chat_bubble_outline,
+                      color: (_allowComments || widget.isOwn)
+                          ? textColor
+                          : subColor,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      SlideRightRoute(
+                        page: SharePostChatScreen(postId: post.postId),
                       ),
                     ),
                     child: Icon(
-                      Icons.chat_bubble_outline,
+                      Icons.send_outlined,
                       color: textColor,
-                      size: 26,
+                      size: 24,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -587,7 +807,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       Share.share(text);
                     },
                     child: Icon(
-                      Icons.send_outlined,
+                      Icons.share_outlined,
                       color: textColor,
                       size: 24,
                     ),
@@ -599,14 +819,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             // Likes
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Text(
-                widget.post.hideLikes
-                    ? 'Liked by others'
-                    : '$_likesCount likes',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
+              child: GestureDetector(
+                onTap: (!_hideLikes || widget.isOwn)
+                    ? () {
+                        Navigator.push(
+                          context,
+                          SlideRightRoute(
+                            page: PostLikesScreen(postId: post.postId),
+                          ),
+                        );
+                      }
+                    : null,
+                child: Text(
+                  (_hideLikes && !widget.isOwn)
+                      ? 'Likes hidden'
+                      : '$_likesCount likes',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
                 ),
               ),
             ),
@@ -659,27 +891,31 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
 
             // View comments
-            if (!widget.post.hideComments)
+            if (!_hideComments || widget.isOwn)
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 4,
                 ),
                 child: GestureDetector(
-                  onTap: () => showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => CommentsScreen(
-                      reelId: post.postId,
-                      isPost: true,
-                      creatorUid: post.creatorUid,
-                    ),
-                  ),
+                  onTap: (_allowComments || widget.isOwn)
+                      ? () => showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => CommentsScreen(
+                              reelId: post.postId,
+                              isPost: true,
+                              creatorUid: post.creatorUid,
+                            ),
+                          )
+                      : null,
                   child: Text(
-                    post.commentsCount > 0
-                        ? 'View all ${post.commentsCount} comments'
-                        : 'Add a comment...',
+                    !_allowComments && !widget.isOwn
+                        ? 'Comments are disabled'
+                        : post.commentsCount > 0
+                            ? 'View all ${post.commentsCount} comments'
+                            : 'Add a comment...',
                     style: GoogleFonts.inter(fontSize: 13, color: subColor),
                   ),
                 ),

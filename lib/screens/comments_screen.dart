@@ -8,16 +8,20 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../utils/animations.dart';
+import 'package:flutter/gestures.dart';
+import 'profile_screen.dart';
 
 class CommentsScreen extends StatefulWidget {
   final String reelId;
   final bool isPost;
   final String? creatorUid;
+  final bool allowComments;
   const CommentsScreen({
     super.key,
     required this.reelId,
     this.isPost = false,
     this.creatorUid,
+    this.allowComments = true,
   });
 
   @override
@@ -213,55 +217,158 @@ class _CommentsScreenState extends State<CommentsScreen> {
             ),
           ),
 
-          // Comment input
-          Container(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 8,
-              top: 8,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 8,
+          // Emoji suggestions bar
+          if (widget.allowComments)
+            Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[50],
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withAlpha(10)
+                        : Colors.black.withAlpha(10),
+                  ),
+                ),
+              ),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                children:
+                    [
+                          '❤️',
+                          '🔥',
+                          '👏',
+                          '😂',
+                          '😮',
+                          '😢',
+                          '😍',
+                          '🙏',
+                          '💯',
+                          '👍',
+                          '🎉',
+                          '💀',
+                          '👀',
+                          '✨',
+                        ]
+                        .map(
+                          (emoji) => GestureDetector(
+                            onTap: () {
+                              final text = _commentCtrl.text;
+                              final selection = _commentCtrl.selection;
+                              final newText = text.replaceRange(
+                                selection.start >= 0
+                                    ? selection.start
+                                    : text.length,
+                                selection.end >= 0
+                                    ? selection.end
+                                    : text.length,
+                                emoji,
+                              );
+                              _commentCtrl.value = TextEditingValue(
+                                text: newText,
+                                selection: TextSelection.collapsed(
+                                  offset:
+                                      (selection.start >= 0
+                                          ? selection.start
+                                          : text.length) +
+                                      emoji.length,
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 22),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+              ),
             ),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[50],
-              border: Border(
-                top: BorderSide(
-                  color: isDark
-                      ? Colors.white.withAlpha(15)
-                      : Colors.black.withAlpha(15),
+
+          // Comment input
+          if (widget.allowComments)
+            Container(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 8,
+                top: 8,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 8,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[50],
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withAlpha(15)
+                        : Colors.black.withAlpha(15),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _commentCtrl,
+                      style: TextStyle(color: textColor, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Add a comment...',
+                        hintStyle: TextStyle(color: subColor, fontSize: 14),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _postComment,
+                    icon: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent,
+                      ),
+                      child: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 14,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 14,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0D0D0D) : Colors.grey[50],
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withAlpha(15)
+                        : Colors.black.withAlpha(15),
+                  ),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  'Comments are turned off',
+                  style: GoogleFonts.inter(color: subColor, fontSize: 14),
                 ),
               ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentCtrl,
-                    style: TextStyle(color: textColor, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'Add a comment...',
-                      hintStyle: TextStyle(color: subColor, fontSize: 14),
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: _postComment,
-                  icon: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accent,
-                    ),
-                    child: const Icon(
-                      Icons.send_rounded,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -285,15 +392,21 @@ class _CommentsScreenState extends State<CommentsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: isDark ? Colors.white12 : Colors.grey[200],
-                backgroundImage: user != null && user.profilePicUrl.isNotEmpty
-                    ? CachedNetworkImageProvider(user.profilePicUrl)
-                    : null,
-                child: user == null || user.profilePicUrl.isEmpty
-                    ? Icon(Icons.person, size: 16, color: subColor)
-                    : null,
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  SlideRightRoute(page: ProfileScreen(userId: comment.uid)),
+                ),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: isDark ? Colors.white12 : Colors.grey[200],
+                  backgroundImage: user != null && user.profilePicUrl.isNotEmpty
+                      ? CachedNetworkImageProvider(user.profilePicUrl)
+                      : null,
+                  child: user == null || user.profilePicUrl.isEmpty
+                      ? Icon(Icons.person, size: 16, color: subColor)
+                      : null,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -310,6 +423,13 @@ class _CommentsScreenState extends State<CommentsScreen> {
                               fontSize: 13,
                               color: textColor,
                             ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => Navigator.push(
+                                context,
+                                SlideRightRoute(
+                                  page: ProfileScreen(userId: comment.uid),
+                                ),
+                              ),
                           ),
                           TextSpan(
                             text: comment.text,

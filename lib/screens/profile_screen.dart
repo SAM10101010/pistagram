@@ -11,6 +11,7 @@ import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../services/follow_service.dart';
 import '../services/achievement_service.dart';
+import '../services/account_manager_service.dart';
 import '../widgets/level_badge.dart';
 import '../utils/animations.dart';
 import 'edit_profile_screen.dart';
@@ -20,6 +21,9 @@ import 'post_detail_screen.dart';
 import 'chat_screen.dart';
 import 'achievements_screen.dart';
 import 'boost_reel_screen.dart';
+import '../models/story_model.dart';
+import '../widgets/rotating_story_ring.dart';
+import 'story_viewer_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -47,6 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _followStatus = 'none'; // none, pending, accepted
   bool _isOwn = true;
   List<Map<String, dynamic>> _earnedAchievements = [];
+  List<StoryModel> _profileStories = [];
 
   @override
   bool get wantKeepAlive => true;
@@ -126,8 +131,12 @@ class _ProfileScreenState extends State<ProfileScreen>
 
       // Load user + content in parallel
       final userFuture = _firestore.getUser(uid);
-      final reelsFuture = _firestore.getReelsByUser(uid).catchError((_) => <ReelModel>[]);
-      final postsFuture = _firestore.getPostsByUser(uid).catchError((_) => <PostModel>[]);
+      final reelsFuture = _firestore
+          .getReelsByUser(uid)
+          .catchError((_) => <ReelModel>[]);
+      final postsFuture = _firestore
+          .getPostsByUser(uid)
+          .catchError((_) => <PostModel>[]);
 
       final results = await Future.wait([userFuture, reelsFuture, postsFuture]);
       _user = results[0] as UserModel?;
@@ -136,6 +145,13 @@ class _ProfileScreenState extends State<ProfileScreen>
 
       // Cache the profile for next time
       if (_user != null) _cacheProfile(_user!);
+
+      // Recalculate follow counts to fix any drift
+      if (_user != null) {
+        await _firestore.recalculateFollowCounts(_user!.uid);
+        final refreshed = await _firestore.getUser(_user!.uid);
+        if (refreshed != null) _user = refreshed;
+      }
 
       // Check follow status for other profiles
       if (!_isOwn) {
@@ -150,11 +166,24 @@ class _ProfileScreenState extends State<ProfileScreen>
 
       // Load saved posts, saved reels & liked content for own profile in parallel
       if (_isOwn) {
-        final savedReelsFuture = _loadSavedReels(myUid).catchError((_) => <ReelModel>[]);
-        final savedPostsFuture = _loadSavedPosts(myUid).catchError((_) => <PostModel>[]);
-        final likedReelsFuture = _loadLikedReels(myUid).catchError((_) => <ReelModel>[]);
-        final likedPostsFuture = _loadLikedPosts(myUid).catchError((_) => <PostModel>[]);
-        final results = await Future.wait([savedReelsFuture, savedPostsFuture, likedReelsFuture, likedPostsFuture]);
+        final savedReelsFuture = _loadSavedReels(
+          myUid,
+        ).catchError((_) => <ReelModel>[]);
+        final savedPostsFuture = _loadSavedPosts(
+          myUid,
+        ).catchError((_) => <PostModel>[]);
+        final likedReelsFuture = _loadLikedReels(
+          myUid,
+        ).catchError((_) => <ReelModel>[]);
+        final likedPostsFuture = _loadLikedPosts(
+          myUid,
+        ).catchError((_) => <PostModel>[]);
+        final results = await Future.wait([
+          savedReelsFuture,
+          savedPostsFuture,
+          likedReelsFuture,
+          likedPostsFuture,
+        ]);
         _savedReels = results[0] as List<ReelModel>;
         _savedPosts = results[1] as List<PostModel>;
         _likedReels = results[2] as List<ReelModel>;
@@ -165,6 +194,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       _earnedAchievements = await AchievementService().getUserAchievements(
         widget.userId ?? _authService.currentUser?.uid ?? '',
       );
+
+      // Load stories for this profile
+      try {
+        _profileStories = await _firestore.getActiveStories(uid);
+      } catch (_) {
+        _profileStories = [];
+      }
     } catch (e) {
       debugPrint('Error loading profile: $e');
     }
@@ -205,6 +241,62 @@ class _ProfileScreenState extends State<ProfileScreen>
     final myUid = _authService.currentUser?.uid ?? '';
     final targetUid = widget.userId ?? '';
     if (_isFollowing || _followStatus == 'pending') {
+      // Confirmation dialog for unfollowing private accounts
+      if (_user?.isPrivate == true && _isFollowing) {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1A1A2E)
+                : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              'Unfollow @${_user?.username ?? ''}?',
+              style: GoogleFonts.inter(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            content: Text(
+              'This is a private account. If you unfollow, you won\'t be able to see their content and will need to send a new follow request.',
+              style: GoogleFonts.inter(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Colors.black54,
+                fontSize: 14,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.inter(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white54
+                        : Colors.black54,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(
+                  'Unfollow',
+                  style: GoogleFonts.inter(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+      }
       await _followService.unfollowUser(myUid, targetUid);
       _isFollowing = false;
       _followStatus = 'none';
@@ -227,9 +319,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     final targetUid = widget.userId ?? '';
     final chat = await _firestore.getOrCreateChat(myUid, targetUid);
     if (mounted) {
-      Navigator.push(context, SlideRightRoute(
-        page: ChatScreen(chatId: chat.chatId, partner: _user),
-      ));
+      Navigator.push(
+        context,
+        SlideRightRoute(
+          page: ChatScreen(chatId: chat.chatId, partner: _user),
+        ),
+      );
     }
   }
 
@@ -290,10 +385,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         barrierDismissible: true,
         transitionDuration: const Duration(milliseconds: 300),
         reverseTransitionDuration: const Duration(milliseconds: 200),
-        pageBuilder: (_, __, ___) => _ProfilePhotoViewer(
-          imageUrl: url,
-          username: _user?.username ?? '',
-        ),
+        pageBuilder: (_, __, ___) =>
+            _ProfilePhotoViewer(imageUrl: url, username: _user?.username ?? ''),
         transitionsBuilder: (_, anim, __, child) {
           return FadeTransition(
             opacity: anim,
@@ -338,11 +431,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: GridView.builder(
                   padding: const EdgeInsets.all(2),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 2,
-                    crossAxisSpacing: 2,
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
                   ),
-                  itemCount: 9,
+                  itemCount: 6,
                   itemBuilder: (_, __) => const ShimmerLoading(borderRadius: 8),
                 ),
               ),
@@ -492,12 +585,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildCoverBanner(Color accent, bool isDark, Color textColor) {
-    final coverColor = _user != null
-        ? _hexToColor(_user!.coverColor)
-        : accent;
-    final coverSecondary = HSLColor.fromColor(coverColor)
-        .withHue((HSLColor.fromColor(coverColor).hue + 40) % 360)
-        .toColor();
+    final coverColor = _user != null ? _hexToColor(_user!.coverColor) : accent;
+    final coverSecondary = HSLColor.fromColor(
+      coverColor,
+    ).withHue((HSLColor.fromColor(coverColor).hue + 40) % 360).toColor();
 
     return SizedBox(
       height: 180,
@@ -518,24 +609,53 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (!_isOwn)
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 22),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        _user?.username ?? '@user',
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new,
                           color: Colors.white,
-                          shadows: [const Shadow(blurRadius: 6, color: Colors.black26)],
+                          size: 22,
+                        ),
+                      ),
+                    GestureDetector(
+                      onTap: _isOwn ? () => _showAccountSwitcher() : null,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _user?.username ?? '@user',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                shadows: [
+                                  const Shadow(
+                                    blurRadius: 6,
+                                    color: Colors.black26,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_isOwn)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 4),
+                                child: Icon(
+                                  Icons.keyboard_arrow_down,
+                                  color: Colors.white70,
+                                  size: 20,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -548,7 +668,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                             context,
                             SlideRightRoute(page: const SettingsScreen()),
                           ),
-                          child: const Icon(Icons.settings_outlined, color: Colors.white, size: 24),
+                          child: const Icon(
+                            Icons.settings_outlined,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                       ),
                   ],
@@ -561,10 +685,28 @@ class _ProfileScreenState extends State<ProfileScreen>
             bottom: 0,
             left: 0,
             right: 0,
-            child: Center(child: GestureDetector(
-              onLongPress: () => _showProfilePhotoViewer(),
-              child: _buildAvatar(accent, isDark),
-            )),
+            child: Center(
+              child: GestureDetector(
+                onLongPress: () => _showProfilePhotoViewer(),
+                onTap: _profileStories.isNotEmpty && _user != null
+                    ? () => Navigator.push(
+                        context,
+                        FadeScaleRoute(
+                          page: StoryViewerScreen(
+                            stories: _profileStories,
+                            creator: _user!,
+                          ),
+                        ),
+                      )
+                    : null,
+                child: RotatingStoryRing(
+                  hasStory: _profileStories.isNotEmpty,
+                  size: 104,
+                  color: accent,
+                  child: _buildAvatar(accent, isDark),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -572,9 +714,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildAvatar(Color accent, bool isDark) {
-    final secondaryColor = HSLColor.fromColor(accent)
-        .withHue((HSLColor.fromColor(accent).hue + 60) % 360)
-        .toColor();
+    final secondaryColor = HSLColor.fromColor(
+      accent,
+    ).withHue((HSLColor.fromColor(accent).hue + 60) % 360).toColor();
     return Container(
       width: 100,
       height: 100,
@@ -651,7 +793,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: GestureDetector(
-              onTap: () => Navigator.push(context, SlideRightRoute(page: const AchievementsScreen())),
+              onTap: () => Navigator.push(
+                context,
+                SlideRightRoute(page: const AchievementsScreen()),
+              ),
               child: SizedBox(
                 height: 32,
                 child: Row(
@@ -659,18 +804,24 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     ..._earnedAchievements.take(5).map((a) {
                       return Container(
-                        width: 28, height: 28,
+                        width: 28,
+                        height: 28,
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: accent.withAlpha(20),
                         ),
-                        child: Icon(_getAchievementIcon(a['icon'] ?? 'star'), size: 14, color: accent),
+                        child: Icon(
+                          _getAchievementIcon(a['icon'] ?? 'star'),
+                          size: 14,
+                          color: accent,
+                        ),
                       );
                     }),
                     if (_earnedAchievements.length > 5)
                       Container(
-                        width: 28, height: 28,
+                        width: 28,
+                        height: 28,
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -679,7 +830,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                         child: Center(
                           child: Text(
                             '+${_earnedAchievements.length - 5}',
-                            style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: accent),
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: accent,
+                            ),
                           ),
                         ),
                       ),
@@ -694,18 +849,30 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   IconData _getAchievementIcon(String name) {
     switch (name) {
-      case 'play_arrow': return Icons.play_arrow_rounded;
-      case 'visibility': return Icons.visibility_rounded;
-      case 'local_fire_department': return Icons.local_fire_department_rounded;
-      case 'whatshot': return Icons.whatshot_rounded;
-      case 'bolt': return Icons.bolt_rounded;
-      case 'favorite': return Icons.favorite_rounded;
-      case 'chat_bubble': return Icons.chat_bubble_rounded;
-      case 'shopping_bag': return Icons.shopping_bag_rounded;
-      case 'trending_up': return Icons.trending_up_rounded;
-      case 'star': return Icons.star_rounded;
-      case 'diamond': return Icons.diamond_rounded;
-      default: return Icons.emoji_events_rounded;
+      case 'play_arrow':
+        return Icons.play_arrow_rounded;
+      case 'visibility':
+        return Icons.visibility_rounded;
+      case 'local_fire_department':
+        return Icons.local_fire_department_rounded;
+      case 'whatshot':
+        return Icons.whatshot_rounded;
+      case 'bolt':
+        return Icons.bolt_rounded;
+      case 'favorite':
+        return Icons.favorite_rounded;
+      case 'chat_bubble':
+        return Icons.chat_bubble_rounded;
+      case 'shopping_bag':
+        return Icons.shopping_bag_rounded;
+      case 'trending_up':
+        return Icons.trending_up_rounded;
+      case 'star':
+        return Icons.star_rounded;
+      case 'diamond':
+        return Icons.diamond_rounded;
+      default:
+        return Icons.emoji_events_rounded;
     }
   }
 
@@ -752,7 +919,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               gradient: (_isFollowing || _followStatus == 'pending')
                   ? null
                   : LinearGradient(colors: [accent, accent.withAlpha(200)]),
-              border: (_isFollowing || _followStatus == 'pending') ? Border.all(color: accent, width: 1.5) : null,
+              border: (_isFollowing || _followStatus == 'pending')
+                  ? Border.all(color: accent, width: 1.5)
+                  : null,
             ),
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
@@ -760,11 +929,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                 _followStatus == 'pending'
                     ? 'Requested'
                     : _isFollowing
-                        ? 'Following'
-                        : 'Follow',
+                    ? 'Following'
+                    : 'Follow',
                 key: ValueKey(_followStatus),
                 style: GoogleFonts.inter(
-                  color: (_isFollowing || _followStatus == 'pending') ? accent : Colors.white,
+                  color: (_isFollowing || _followStatus == 'pending')
+                      ? accent
+                      : Colors.white,
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
@@ -810,13 +981,36 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: _buildStatCard(
               _formatCount(_user?.followersCount ?? 0),
               'Followers',
-              cardColor, textColor, subColor,
-              onTap: () => Navigator.push(
-                context,
-                SlideRightRoute(
-                  page: FollowersScreen(uid: _user?.uid ?? '', initialTab: 0),
-                ),
-              ),
+              cardColor,
+              textColor,
+              subColor,
+              onTap: () {
+                final isPrivateBlocked =
+                    _user?.isPrivate == true &&
+                    !_isOwn &&
+                    _followStatus != 'accepted';
+                final isHidden =
+                    _user?.privacySettings['hideFollowers'] == true && !_isOwn;
+                if (isPrivateBlocked || isHidden) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('This account is private'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  SlideRightRoute(
+                    page: FollowersScreen(uid: _user?.uid ?? '', initialTab: 0),
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(width: 10),
@@ -824,13 +1018,36 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: _buildStatCard(
               _formatCount(_user?.followingCount ?? 0),
               'Following',
-              cardColor, textColor, subColor,
-              onTap: () => Navigator.push(
-                context,
-                SlideRightRoute(
-                  page: FollowersScreen(uid: _user?.uid ?? '', initialTab: 1),
-                ),
-              ),
+              cardColor,
+              textColor,
+              subColor,
+              onTap: () {
+                final isPrivateBlocked =
+                    _user?.isPrivate == true &&
+                    !_isOwn &&
+                    _followStatus != 'accepted';
+                final isHidden =
+                    _user?.privacySettings['hideFollowing'] == true && !_isOwn;
+                if (isPrivateBlocked || isHidden) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('This account is private'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  SlideRightRoute(
+                    page: FollowersScreen(uid: _user?.uid ?? '', initialTab: 1),
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(width: 10),
@@ -895,9 +1112,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: textColor.withAlpha(10),
-          ),
+          border: Border.all(color: textColor.withAlpha(10)),
         ),
         child: Column(
           children: [
@@ -938,11 +1153,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
     return GridView.builder(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(6),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
+        crossAxisCount: 2,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
         childAspectRatio: 1.0,
       ),
       itemCount: posts.length,
@@ -966,6 +1181,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               setState(() {});
             }
           },
+          onLongPress: _isOwn
+              ? () => _showPostOptions(post, accent, isDark)
+              : null,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Stack(
@@ -978,7 +1196,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   fit: BoxFit.cover,
                   placeholder: (c, u) => Container(
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                      color: isDark
+                          ? const Color(0xFF1A1A2E)
+                          : Colors.grey[200],
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
@@ -1008,6 +1228,391 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  void _showAccountSwitcher() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = Theme.of(context).colorScheme.primary;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? Colors.white54 : Colors.black54;
+    final accountManager = AccountManagerService();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => FutureBuilder<List<dynamic>>(
+        future: accountManager.getSavedAccounts(),
+        builder: (ctx, snap) {
+          final accounts = snap.data ?? [];
+          final currentUid = _authService.currentUser?.uid ?? '';
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: subColor.withAlpha(80),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    'Switch Account',
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final account in accounts)
+                  ListTile(
+                    leading: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: isDark
+                          ? const Color(0xFF252540)
+                          : Colors.grey[200],
+                      backgroundImage: account.profilePicUrl.isNotEmpty
+                          ? CachedNetworkImageProvider(account.profilePicUrl)
+                          : null,
+                      child: account.profilePicUrl.isEmpty
+                          ? Icon(Icons.person, size: 18, color: subColor)
+                          : null,
+                    ),
+                    title: Text(
+                      account.displayName.isNotEmpty
+                          ? account.displayName
+                          : account.email,
+                      style: GoogleFonts.inter(
+                        color: textColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      account.email,
+                      style: GoogleFonts.inter(color: subColor, fontSize: 12),
+                    ),
+                    trailing: account.uid == currentUid
+                        ? Icon(Icons.check_circle, color: accent, size: 20)
+                        : null,
+                    onTap: () async {
+                      if (account.uid == currentUid) {
+                        Navigator.pop(ctx);
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      try {
+                        await accountManager.switchAccount(account.uid);
+                        if (mounted) {
+                          _loadProfile();
+                          setState(() {});
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to switch: $e'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent.withAlpha(25),
+                    ),
+                    child: Icon(Icons.add, color: accent),
+                  ),
+                  title: Text(
+                    'Add Account',
+                    style: GoogleFonts.inter(
+                      color: accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, '/auth');
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showPostOptions(PostModel post, Color accent, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? Colors.white54 : Colors.black54;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: subColor.withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.edit_outlined, color: accent),
+              title: Text(
+                'Edit Caption',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showEditCaptionDialog(post, accent, isDark);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.visibility_outlined, color: accent),
+              title: Text(
+                'Change Visibility',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              subtitle: Text(
+                'Currently: ${post.visibility}',
+                style: GoogleFonts.inter(color: subColor, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showVisibilityPicker(post, accent, isDark);
+              },
+            ),
+            SwitchListTile(
+              secondary: Icon(Icons.favorite_border, color: accent),
+              title: Text(
+                'Hide Like Count',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              value: post.hideLikes,
+              activeColor: accent,
+              onChanged: (v) async {
+                Navigator.pop(ctx);
+                await _firestore.updatePost(post.postId, {'hideLikes': v});
+                _loadProfile();
+              },
+            ),
+            SwitchListTile(
+              secondary: Icon(Icons.comment_outlined, color: accent),
+              title: Text(
+                'Hide Comments',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              value: post.hideComments,
+              activeColor: accent,
+              onChanged: (v) async {
+                Navigator.pop(ctx);
+                await _firestore.updatePost(post.postId, {'hideComments': v});
+                _loadProfile();
+              },
+            ),
+            SwitchListTile(
+              secondary: Icon(Icons.chat_bubble_outline, color: accent),
+              title: Text(
+                'Allow Comments',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              value: post.allowComments,
+              activeColor: accent,
+              onChanged: (v) async {
+                Navigator.pop(ctx);
+                await _firestore.updatePost(post.postId, {'allowComments': v});
+                _loadProfile();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+                color: Colors.redAccent,
+              ),
+              title: Text(
+                'Delete Post',
+                style: GoogleFonts.inter(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _firestore.deletePost(post.postId);
+                _posts.removeWhere((p) => p.postId == post.postId);
+                setState(() {});
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditCaptionDialog(PostModel post, Color accent, bool isDark) {
+    final ctrl = TextEditingController(text: post.caption);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Edit Caption',
+          style: GoogleFonts.inter(
+            color: textColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 4,
+          style: TextStyle(color: textColor),
+          decoration: InputDecoration(
+            hintText: 'Write a caption...',
+            hintStyle: TextStyle(
+              color: isDark ? Colors.white30 : Colors.black26,
+            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _firestore.updatePost(post.postId, {
+                'caption': ctrl.text.trim(),
+              });
+              _loadProfile();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Save',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVisibilityPicker(PostModel post, Color accent, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            for (final v in ['public', 'followers', 'private'])
+              ListTile(
+                leading: Icon(
+                  v == 'public'
+                      ? Icons.public
+                      : v == 'followers'
+                      ? Icons.people
+                      : Icons.lock,
+                  color: post.visibility == v
+                      ? accent
+                      : (isDark ? Colors.white38 : Colors.black38),
+                ),
+                title: Text(
+                  v[0].toUpperCase() + v.substring(1),
+                  style: GoogleFonts.inter(
+                    color: textColor,
+                    fontWeight: post.visibility == v
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+                trailing: post.visibility == v
+                    ? Icon(Icons.check_circle, color: accent)
+                    : null,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _firestore.updatePost(post.postId, {'visibility': v});
+                  _loadProfile();
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildReelsGrid(
     List<ReelModel> reels,
     Color accent,
@@ -1032,11 +1637,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       });
 
     return GridView.builder(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(6),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
+        crossAxisCount: 2,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
         childAspectRatio: 0.75,
       ),
       itemCount: sorted.length,
@@ -1117,11 +1722,11 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     final totalCount = _savedPosts.length + _savedReels.length;
     return GridView.builder(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(6),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
+        crossAxisCount: 2,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
       ),
       itemCount: totalCount,
       itemBuilder: (ctx, i) {
@@ -1157,7 +1762,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         : 'https://picsum.photos/200/300?random=${post.postId.hashCode}',
                     fit: BoxFit.cover,
                     placeholder: (c, u) => Container(
-                      color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                      color: isDark
+                          ? const Color(0xFF1A1A2E)
+                          : Colors.grey[200],
                     ),
                   ),
                   Positioned(
@@ -1169,7 +1776,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                         color: Colors.black.withAlpha(100),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(Icons.photo, color: Colors.white, size: 12),
+                      child: const Icon(
+                        Icons.photo,
+                        color: Colors.white,
+                        size: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -1213,7 +1824,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: Colors.black.withAlpha(100),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Icon(Icons.videocam, color: Colors.white, size: 12),
+                  child: const Icon(
+                    Icons.videocam,
+                    color: Colors.white,
+                    size: 12,
+                  ),
                 ),
               ),
               Positioned(
@@ -1298,11 +1913,11 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     final totalCount = _likedPosts.length + _likedReels.length;
     return GridView.builder(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(6),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
+        crossAxisCount: 2,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
       ),
       itemCount: totalCount,
       itemBuilder: (ctx, i) {
@@ -1314,11 +1929,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             onTap: () => Navigator.push(
               context,
               FadeScaleRoute(
-                page: PostDetailScreen(
-                  post: post,
-                  creator: null,
-                  isOwn: false,
-                ),
+                page: PostDetailScreen(post: post, creator: null, isOwn: false),
               ),
             ),
             child: ClipRRect(
@@ -1332,7 +1943,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         : 'https://picsum.photos/200/300?random=${post.postId.hashCode}',
                     fit: BoxFit.cover,
                     placeholder: (c, u) => Container(
-                      color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[200],
+                      color: isDark
+                          ? const Color(0xFF1A1A2E)
+                          : Colors.grey[200],
                     ),
                   ),
                   Positioned(
@@ -1344,7 +1957,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                         color: Colors.black.withAlpha(100),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(Icons.photo, color: Colors.white, size: 12),
+                      child: const Icon(
+                        Icons.photo,
+                        color: Colors.white,
+                        size: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -1379,7 +1996,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: Colors.black.withAlpha(100),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 14),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
                 ),
               ),
             ],
@@ -1435,10 +2056,7 @@ class _ProfilePhotoViewer extends StatelessWidget {
   final String imageUrl;
   final String username;
 
-  const _ProfilePhotoViewer({
-    required this.imageUrl,
-    required this.username,
-  });
+  const _ProfilePhotoViewer({required this.imageUrl, required this.username});
 
   @override
   Widget build(BuildContext context) {
@@ -1475,7 +2093,10 @@ class _ProfilePhotoViewer extends StatelessWidget {
               right: 0,
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       GestureDetector(
@@ -1486,7 +2107,11 @@ class _ProfilePhotoViewer extends StatelessWidget {
                             color: Colors.black.withAlpha(100),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.close, color: Colors.white, size: 22),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),

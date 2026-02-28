@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../services/follow_service.dart';
 import '../services/auth_service.dart';
 import '../utils/animations.dart';
+import 'profile_screen.dart';
 
 class FollowersScreen extends StatefulWidget {
   final String uid;
@@ -98,7 +99,9 @@ class _FollowersScreenState extends State<FollowersScreen> with SingleTickerProv
       itemCount: users.length,
       itemBuilder: (context, index) {
         final user = users[index];
-        return Container(
+        return GestureDetector(
+          onTap: () => Navigator.push(context, SlideRightRoute(page: ProfileScreen(userId: user.uid))),
+          child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -135,6 +138,7 @@ class _FollowersScreenState extends State<FollowersScreen> with SingleTickerProv
               _buildActionButton(user, isDark, isFollowers),
             ],
           ),
+        ),
         );
       },
     );

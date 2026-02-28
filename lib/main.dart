@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/theme_provider.dart';
+import 'services/push_notification_service.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
   );
@@ -29,6 +32,7 @@ class PistagramApp extends StatefulWidget {
 
 class _PistagramAppState extends State<PistagramApp> {
   final ThemeProvider _themeProvider = ThemeProvider();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   ThemeProvider get themeProvider => _themeProvider;
 
@@ -38,6 +42,7 @@ class _PistagramAppState extends State<PistagramApp> {
     _themeProvider.addListener(() {
       if (mounted) setState(() {});
     });
+    PushNotificationService.initialize(_navigatorKey);
   }
 
   @override
@@ -45,6 +50,7 @@ class _PistagramAppState extends State<PistagramApp> {
     final accent = _themeProvider.accentColor;
     final accentSec = _themeProvider.accentSecondary;
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Pistagram',
       debugShowCheckedModeBanner: false,
       themeMode: _themeProvider.themeMode,

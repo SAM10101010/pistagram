@@ -7,3 +7,4 @@ export { checkSecretReelLimit } from './checkSecretReelLimit';
 export { expireBoosts } from './expireBoosts';
 export { resolvePredictions } from './resolvePredictions';
 export { openMysteryBox } from './openMysteryBox';
+export { sendPushNotification } from './sendPushNotification';

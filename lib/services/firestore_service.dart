@@ -8,6 +8,7 @@ import '../models/transaction_model.dart';
 import '../models/notification_model.dart';
 import '../models/comment_model.dart';
 import '../models/message_model.dart';
+import 'push_notification_service.dart';
 import '../models/reward_model.dart';
 import '../models/report_model.dart';
 import '../models/block_model.dart';
@@ -244,14 +245,16 @@ class FirestoreService {
 
     // Create notification for reel creator
     if (creatorUid != null && creatorUid != uid) {
-      await addNotification(NotificationModel(
-        id: '${uid}_like_$reelId',
-        toUid: creatorUid,
-        fromUid: uid,
-        type: 'like',
-        message: 'liked your reel',
-        reelId: reelId,
-      ));
+      await addNotification(
+        NotificationModel(
+          id: '${uid}_like_$reelId',
+          toUid: creatorUid,
+          fromUid: uid,
+          type: 'like',
+          message: 'liked your reel',
+          reelId: reelId,
+        ),
+      );
     }
   }
 
@@ -333,18 +336,23 @@ class FirestoreService {
 
     // Create notification for reel creator
     if (creatorUid != null && creatorUid != comment.uid) {
-      await addNotification(NotificationModel(
-        id: 'comment_${comment.id}',
-        toUid: creatorUid,
-        fromUid: comment.uid,
-        type: 'comment',
-        message: 'commented on your reel',
-        reelId: comment.reelId,
-      ));
+      await addNotification(
+        NotificationModel(
+          id: 'comment_${comment.id}',
+          toUid: creatorUid,
+          fromUid: comment.uid,
+          type: 'comment',
+          message: 'commented on your reel',
+          reelId: comment.reelId,
+        ),
+      );
     }
   }
 
-  Future<void> addPostComment(CommentModel comment, {String? creatorUid}) async {
+  Future<void> addPostComment(
+    CommentModel comment, {
+    String? creatorUid,
+  }) async {
     final batch = _db.batch();
     batch.set(_comments.doc(comment.id), comment.toMap());
     batch.update(_posts.doc(comment.reelId), {
@@ -354,14 +362,16 @@ class FirestoreService {
 
     // Create notification for post creator
     if (creatorUid != null && creatorUid != comment.uid) {
-      await addNotification(NotificationModel(
-        id: 'comment_${comment.id}',
-        toUid: creatorUid,
-        fromUid: comment.uid,
-        type: 'comment',
-        message: 'commented on your post',
-        postId: comment.reelId,
-      ));
+      await addNotification(
+        NotificationModel(
+          id: 'comment_${comment.id}',
+          toUid: creatorUid,
+          fromUid: comment.uid,
+          type: 'comment',
+          message: 'commented on your post',
+          postId: comment.reelId,
+        ),
+      );
     }
   }
 
@@ -430,6 +440,8 @@ class FirestoreService {
   // ═══════════════════════════════════════
   Future<void> addNotification(NotificationModel notif) async {
     await _notifications.doc(notif.id).set(notif.toMap());
+    // Send push notification to recipient's device(s)
+    PushNotificationService.sendPushToUser(notif);
   }
 
   Future<void> markNotificationRead(String id) async {
@@ -524,6 +536,21 @@ class FirestoreService {
         .map(
           (snap) => snap.docs.map((d) => ChatModel.fromMap(d.data())).toList(),
         );
+  }
+
+  Future<void> deleteMessage(String chatId, String messageId) async {
+    await _chats.doc(chatId).collection('messages').doc(messageId).delete();
+  }
+
+  Future<void> updateMessage(
+    String chatId,
+    String messageId,
+    String newText,
+  ) async {
+    await _chats.doc(chatId).collection('messages').doc(messageId).update({
+      'text': newText,
+      'isEdited': true,
+    });
   }
 
   // ═══════════════════════════════════════
@@ -813,14 +840,16 @@ class FirestoreService {
 
     // Create notification for post creator
     if (creatorUid != null && creatorUid != uid) {
-      await addNotification(NotificationModel(
-        id: '${uid}_like_post_$postId',
-        toUid: creatorUid,
-        fromUid: uid,
-        type: 'like',
-        message: 'liked your post',
-        postId: postId,
-      ));
+      await addNotification(
+        NotificationModel(
+          id: '${uid}_like_post_$postId',
+          toUid: creatorUid,
+          fromUid: uid,
+          type: 'like',
+          message: 'liked your post',
+          postId: postId,
+        ),
+      );
     }
   }
 
@@ -904,6 +933,40 @@ class FirestoreService {
 
   Future<void> deleteStory(String storyId) async {
     await _stories.doc(storyId).delete();
+  }
+
+  Future<void> likeStory(String storyId, String uid) async {
+    await _stories.doc(storyId).update({
+      'likedByUids': FieldValue.arrayUnion([uid]),
+      'likesCount': FieldValue.increment(1),
+    });
+  }
+
+  Future<void> unlikeStory(String storyId, String uid) async {
+    await _stories.doc(storyId).update({
+      'likedByUids': FieldValue.arrayRemove([uid]),
+      'likesCount': FieldValue.increment(-1),
+    });
+  }
+
+  Future<void> addStoryComment(String storyId, CommentModel comment) async {
+    await _stories
+        .doc(storyId)
+        .collection('comments')
+        .doc(comment.id)
+        .set(comment.toMap());
+  }
+
+  Stream<List<CommentModel>> getStoryComments(String storyId) {
+    return _stories
+        .doc(storyId)
+        .collection('comments')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => CommentModel.fromMap(d.data())).toList(),
+        );
   }
 
   // ═══════════════════════════════════════
@@ -1035,5 +1098,70 @@ class FirestoreService {
       if (snap.docs[i].data()['uid'] == uid) return i + 1;
     }
     return null;
+  }
+
+  // ═══════════════════════════════════════
+  // ADDITIONAL HELPERS
+  // ═══════════════════════════════════════
+  Future<void> deleteNotification(String id) async {
+    await _notifications.doc(id).delete();
+  }
+
+  Future<void> recalculateFollowCounts(String uid) async {
+    final followersSnap = await _follows
+        .where('followingId', isEqualTo: uid)
+        .where('status', isEqualTo: 'accepted')
+        .get();
+    final followingSnap = await _follows
+        .where('followerId', isEqualTo: uid)
+        .where('status', isEqualTo: 'accepted')
+        .get();
+    final actualFollowers = followersSnap.docs.length;
+    final actualFollowing = followingSnap.docs.length;
+    await _users.doc(uid).update({
+      'followersCount': actualFollowers,
+      'followingCount': actualFollowing,
+    });
+  }
+
+  Future<void> updatePost(String postId, Map<String, dynamic> data) async {
+    await _posts.doc(postId).update(data);
+  }
+
+  Future<List<UserModel>> getPostLikers(String postId) async {
+    final snap = await _likes.where('postId', isEqualTo: postId).get();
+    final users = <UserModel>[];
+    for (final doc in snap.docs) {
+      final uid = doc.data()['uid'] as String?;
+      if (uid == null || uid.isEmpty) continue;
+      final user = await getUser(uid);
+      if (user != null) users.add(user);
+    }
+    return users;
+  }
+
+  Future<String> getFollowStatus(String followerId, String followingId) async {
+    final doc = await _follows.doc('${followerId}_$followingId').get();
+    if (!doc.exists) return 'none';
+    return doc.data()?['status'] ?? 'none';
+  }
+
+  Stream<int> getUnreadChatCount(String uid) {
+    return _chats.where('participants', arrayContains: uid).snapshots().map((
+      snap,
+    ) {
+      int count = 0;
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final lastSender = data['lastMessageSenderUid'] ?? '';
+        final lastMessage = data['lastMessage'] ?? '';
+        if (lastSender.isNotEmpty &&
+            lastSender != uid &&
+            lastMessage.isNotEmpty) {
+          count++;
+        }
+      }
+      return count;
+    });
   }
 }

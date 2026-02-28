@@ -22,6 +22,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final _firestore = FirestoreService();
   final _followService = FollowService();
   final Map<String, UserModel> _userCache = {};
+  final Set<String> _handledRequestIds = {};
 
   Future<UserModel?> _getCachedUser(String uid) async {
     if (_userCache.containsKey(uid)) return _userCache[uid];
@@ -341,7 +342,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         padding: const EdgeInsets.only(left: 8),
                         child: _buildFollowBackButton(notif.fromUid, accent),
                       ),
-                    if (notif.type == 'follow_request')
+                    if (notif.type == 'follow_request' && !_handledRequestIds.contains(notif.id))
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
                         child: _buildFollowRequestButtons(
@@ -426,8 +427,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             onPressed: () async {
               final uid = _auth.currentUser?.uid ?? '';
               await _followService.acceptRequest(notif.fromUid, uid);
-              await _firestore.markNotificationRead(notif.id);
+              await _firestore.deleteNotification(notif.id);
               if (mounted) {
+                setState(() => _handledRequestIds.add(notif.id));
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: const Text('Request accepted'),
@@ -462,7 +464,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             onPressed: () async {
               final uid = _auth.currentUser?.uid ?? '';
               await _followService.rejectRequest(notif.fromUid, uid);
-              await _firestore.markNotificationRead(notif.id);
+              await _firestore.deleteNotification(notif.id);
+              if (mounted) setState(() => _handledRequestIds.add(notif.id));
             },
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: subColor.withAlpha(80)),
