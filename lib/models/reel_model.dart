@@ -35,6 +35,25 @@ class ReelModel {
   final double averageRating;
   final int totalRatings;
   final int ratingSum;
+  // Lifecycle (Feature 7)
+  final String lifecycleStage;
+  final double viewVelocity;
+  final double engagementGrowthRate;
+  final DateTime? lastVelocityCalculation;
+  // Content type (Feature 12)
+  final String contentType;
+  // Community tags (Feature 14)
+  final String communityCategory;
+  final Map<String, int> categoryVoteCounts;
+  // Watch depth (Feature 17)
+  final double avgWatchDepth;
+  final int totalWatchSessions;
+  final int highRetentionViews;
+  // Momentum (Feature 19)
+  final double momentumScore;
+  final double engagementLastHour;
+  final double engagementPreviousHour;
+  final String momentumStatus;
 
   ReelModel({
     required this.reelId,
@@ -68,8 +87,23 @@ class ReelModel {
     this.averageRating = 0.0,
     this.totalRatings = 0,
     this.ratingSum = 0,
+    this.lifecycleStage = 'fresh',
+    this.viewVelocity = 0.0,
+    this.engagementGrowthRate = 0.0,
+    this.lastVelocityCalculation,
+    this.contentType = 'other',
+    this.communityCategory = '',
+    Map<String, int>? categoryVoteCounts,
+    this.avgWatchDepth = 0.0,
+    this.totalWatchSessions = 0,
+    this.highRetentionViews = 0,
+    this.momentumScore = 0.0,
+    this.engagementLastHour = 0.0,
+    this.engagementPreviousHour = 0.0,
+    this.momentumStatus = 'stable',
   }) : hashtags = hashtags ?? [],
        taggedUsers = taggedUsers ?? [],
+       categoryVoteCounts = categoryVoteCounts ?? {},
        createdAt = createdAt ?? DateTime.now();
 
   bool get hasReachedLimit =>
@@ -110,6 +144,20 @@ class ReelModel {
       averageRating: (map['averageRating'] ?? 0.0).toDouble(),
       totalRatings: map['totalRatings'] ?? 0,
       ratingSum: map['ratingSum'] ?? 0,
+      lifecycleStage: map['lifecycleStage'] ?? 'fresh',
+      viewVelocity: (map['viewVelocity'] ?? 0.0).toDouble(),
+      engagementGrowthRate: (map['engagementGrowthRate'] ?? 0.0).toDouble(),
+      lastVelocityCalculation: (map['lastVelocityCalculation'] as Timestamp?)?.toDate(),
+      contentType: map['contentType'] ?? 'other',
+      communityCategory: map['communityCategory'] ?? '',
+      categoryVoteCounts: Map<String, int>.from(map['categoryVoteCounts'] ?? {}),
+      avgWatchDepth: (map['avgWatchDepth'] ?? 0.0).toDouble(),
+      totalWatchSessions: map['totalWatchSessions'] ?? 0,
+      highRetentionViews: map['highRetentionViews'] ?? 0,
+      momentumScore: (map['momentumScore'] ?? 0.0).toDouble(),
+      engagementLastHour: (map['engagementLastHour'] ?? 0.0).toDouble(),
+      engagementPreviousHour: (map['engagementPreviousHour'] ?? 0.0).toDouble(),
+      momentumStatus: map['momentumStatus'] ?? 'stable',
     );
   }
 
@@ -146,6 +194,22 @@ class ReelModel {
       'averageRating': averageRating,
       'totalRatings': totalRatings,
       'ratingSum': ratingSum,
+      'lifecycleStage': lifecycleStage,
+      'viewVelocity': viewVelocity,
+      'engagementGrowthRate': engagementGrowthRate,
+      'lastVelocityCalculation': lastVelocityCalculation != null
+          ? Timestamp.fromDate(lastVelocityCalculation!)
+          : null,
+      'contentType': contentType,
+      'communityCategory': communityCategory,
+      'categoryVoteCounts': categoryVoteCounts,
+      'avgWatchDepth': avgWatchDepth,
+      'totalWatchSessions': totalWatchSessions,
+      'highRetentionViews': highRetentionViews,
+      'momentumScore': momentumScore,
+      'engagementLastHour': engagementLastHour,
+      'engagementPreviousHour': engagementPreviousHour,
+      'momentumStatus': momentumStatus,
     };
   }
 
@@ -181,6 +245,20 @@ class ReelModel {
     double? averageRating,
     int? totalRatings,
     int? ratingSum,
+    String? lifecycleStage,
+    double? viewVelocity,
+    double? engagementGrowthRate,
+    DateTime? lastVelocityCalculation,
+    String? contentType,
+    String? communityCategory,
+    Map<String, int>? categoryVoteCounts,
+    double? avgWatchDepth,
+    int? totalWatchSessions,
+    int? highRetentionViews,
+    double? momentumScore,
+    double? engagementLastHour,
+    double? engagementPreviousHour,
+    String? momentumStatus,
   }) {
     return ReelModel(
       reelId: reelId ?? this.reelId,
@@ -214,6 +292,20 @@ class ReelModel {
       averageRating: averageRating ?? this.averageRating,
       totalRatings: totalRatings ?? this.totalRatings,
       ratingSum: ratingSum ?? this.ratingSum,
+      lifecycleStage: lifecycleStage ?? this.lifecycleStage,
+      viewVelocity: viewVelocity ?? this.viewVelocity,
+      engagementGrowthRate: engagementGrowthRate ?? this.engagementGrowthRate,
+      lastVelocityCalculation: lastVelocityCalculation ?? this.lastVelocityCalculation,
+      contentType: contentType ?? this.contentType,
+      communityCategory: communityCategory ?? this.communityCategory,
+      categoryVoteCounts: categoryVoteCounts ?? this.categoryVoteCounts,
+      avgWatchDepth: avgWatchDepth ?? this.avgWatchDepth,
+      totalWatchSessions: totalWatchSessions ?? this.totalWatchSessions,
+      highRetentionViews: highRetentionViews ?? this.highRetentionViews,
+      momentumScore: momentumScore ?? this.momentumScore,
+      engagementLastHour: engagementLastHour ?? this.engagementLastHour,
+      engagementPreviousHour: engagementPreviousHour ?? this.engagementPreviousHour,
+      momentumStatus: momentumStatus ?? this.momentumStatus,
     );
   }
 }

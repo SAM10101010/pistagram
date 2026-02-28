@@ -33,6 +33,22 @@ class UserModel {
   final DateTime? lastStreakDate;
   final int streakReelsToday;
   final int totalWatchedReels;
+  // Behavior & personality (Feature 10)
+  final Map<String, dynamic> behaviorProfile;
+  // Trust score (Feature 5)
+  final double trustScore;
+  final int reportsFiled;
+  final int reportsReceived;
+  final int validReportsFiled;
+  final int spamDetectionFlags;
+  final String trustLevel;
+  // Creator consistency (Feature 3)
+  final int reelsUploadedThisMonth;
+  final double avgUploadGapDays;
+  final double consistencyScore;
+  final String consistencyBadge;
+  // Silent mode (Feature 11)
+  final bool silentModeEnabled;
 
   UserModel({
     required this.uid,
@@ -66,6 +82,18 @@ class UserModel {
     this.lastStreakDate,
     this.streakReelsToday = 0,
     this.totalWatchedReels = 0,
+    Map<String, dynamic>? behaviorProfile,
+    this.trustScore = 50.0,
+    this.reportsFiled = 0,
+    this.reportsReceived = 0,
+    this.validReportsFiled = 0,
+    this.spamDetectionFlags = 0,
+    this.trustLevel = 'medium',
+    this.reelsUploadedThisMonth = 0,
+    this.avgUploadGapDays = 0.0,
+    this.consistencyScore = 0.0,
+    this.consistencyBadge = 'new_creator',
+    this.silentModeEnabled = false,
   }) : privacySettings =
            privacySettings ??
            {
@@ -78,6 +106,7 @@ class UserModel {
        fcmTokens = fcmTokens ?? [],
        pinnedReelIds = pinnedReelIds ?? [],
        closeFriends = closeFriends ?? [],
+       behaviorProfile = behaviorProfile ?? {},
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
@@ -125,6 +154,18 @@ class UserModel {
       lastStreakDate: (map['lastStreakDate'] as Timestamp?)?.toDate(),
       streakReelsToday: map['streakReelsToday'] ?? 0,
       totalWatchedReels: map['totalWatchedReels'] ?? 0,
+      behaviorProfile: Map<String, dynamic>.from(map['behaviorProfile'] ?? {}),
+      trustScore: (map['trustScore'] ?? 50.0).toDouble(),
+      reportsFiled: map['reportsFiled'] ?? 0,
+      reportsReceived: map['reportsReceived'] ?? 0,
+      validReportsFiled: map['validReportsFiled'] ?? 0,
+      spamDetectionFlags: map['spamDetectionFlags'] ?? 0,
+      trustLevel: map['trustLevel'] ?? 'medium',
+      reelsUploadedThisMonth: map['reelsUploadedThisMonth'] ?? 0,
+      avgUploadGapDays: (map['avgUploadGapDays'] ?? 0.0).toDouble(),
+      consistencyScore: (map['consistencyScore'] ?? 0.0).toDouble(),
+      consistencyBadge: map['consistencyBadge'] ?? 'new_creator',
+      silentModeEnabled: map['silentModeEnabled'] ?? false,
     );
   }
 
@@ -165,6 +206,18 @@ class UserModel {
           : null,
       'streakReelsToday': streakReelsToday,
       'totalWatchedReels': totalWatchedReels,
+      'behaviorProfile': behaviorProfile,
+      'trustScore': trustScore,
+      'reportsFiled': reportsFiled,
+      'reportsReceived': reportsReceived,
+      'validReportsFiled': validReportsFiled,
+      'spamDetectionFlags': spamDetectionFlags,
+      'trustLevel': trustLevel,
+      'reelsUploadedThisMonth': reelsUploadedThisMonth,
+      'avgUploadGapDays': avgUploadGapDays,
+      'consistencyScore': consistencyScore,
+      'consistencyBadge': consistencyBadge,
+      'silentModeEnabled': silentModeEnabled,
     };
   }
 
@@ -200,6 +253,18 @@ class UserModel {
     DateTime? lastStreakDate,
     int? streakReelsToday,
     int? totalWatchedReels,
+    Map<String, dynamic>? behaviorProfile,
+    double? trustScore,
+    int? reportsFiled,
+    int? reportsReceived,
+    int? validReportsFiled,
+    int? spamDetectionFlags,
+    String? trustLevel,
+    int? reelsUploadedThisMonth,
+    double? avgUploadGapDays,
+    double? consistencyScore,
+    String? consistencyBadge,
+    bool? silentModeEnabled,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -233,6 +298,18 @@ class UserModel {
       lastStreakDate: lastStreakDate ?? this.lastStreakDate,
       streakReelsToday: streakReelsToday ?? this.streakReelsToday,
       totalWatchedReels: totalWatchedReels ?? this.totalWatchedReels,
+      behaviorProfile: behaviorProfile ?? this.behaviorProfile,
+      trustScore: trustScore ?? this.trustScore,
+      reportsFiled: reportsFiled ?? this.reportsFiled,
+      reportsReceived: reportsReceived ?? this.reportsReceived,
+      validReportsFiled: validReportsFiled ?? this.validReportsFiled,
+      spamDetectionFlags: spamDetectionFlags ?? this.spamDetectionFlags,
+      trustLevel: trustLevel ?? this.trustLevel,
+      reelsUploadedThisMonth: reelsUploadedThisMonth ?? this.reelsUploadedThisMonth,
+      avgUploadGapDays: avgUploadGapDays ?? this.avgUploadGapDays,
+      consistencyScore: consistencyScore ?? this.consistencyScore,
+      consistencyBadge: consistencyBadge ?? this.consistencyBadge,
+      silentModeEnabled: silentModeEnabled ?? this.silentModeEnabled,
     );
   }
 }

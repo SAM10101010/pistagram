@@ -10,6 +10,11 @@ class CommentModel {
   final List<String> likedByUids;
   final int repliesCount;
   final DateTime createdAt;
+  // Quality ranking (Feature 4)
+  final double commentScore;
+  final int upvotes;
+  final int downvotes;
+  final int characterCount;
 
   CommentModel({
     required this.id,
@@ -21,7 +26,12 @@ class CommentModel {
     this.likedByUids = const [],
     this.repliesCount = 0,
     DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
+    this.commentScore = 0.0,
+    this.upvotes = 0,
+    this.downvotes = 0,
+    int? characterCount,
+  }) : createdAt = createdAt ?? DateTime.now(),
+       characterCount = characterCount ?? text.length;
 
   factory CommentModel.fromMap(Map<String, dynamic> map) {
     return CommentModel(
@@ -34,6 +44,10 @@ class CommentModel {
       likedByUids: List<String>.from(map['likedByUids'] ?? []),
       repliesCount: map['repliesCount'] ?? 0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      commentScore: (map['commentScore'] ?? 0.0).toDouble(),
+      upvotes: map['upvotes'] ?? 0,
+      downvotes: map['downvotes'] ?? 0,
+      characterCount: map['characterCount'] ?? (map['text'] ?? '').length,
     );
   }
 
@@ -48,6 +62,10 @@ class CommentModel {
       'likedByUids': likedByUids,
       'repliesCount': repliesCount,
       'createdAt': Timestamp.fromDate(createdAt),
+      'commentScore': commentScore,
+      'upvotes': upvotes,
+      'downvotes': downvotes,
+      'characterCount': characterCount,
     };
   }
 }
