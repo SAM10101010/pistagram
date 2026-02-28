@@ -9,6 +9,7 @@ import '../services/firestore_service.dart';
 import '../services/follow_service.dart';
 import '../utils/animations.dart';
 import 'profile_screen.dart';
+import 'follow_requests_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -92,64 +93,167 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
           final notifs = snap.data ?? [];
           if (notifs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(28),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [accent.withAlpha(25), accent.withAlpha(8)],
-                      ),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: accent.withAlpha(18),
-                      ),
-                      child: Icon(
-                        Icons.notifications_none_rounded,
-                        size: 48,
-                        color: accent.withAlpha(150),
-                      ),
+            return Column(
+              children: [
+                _buildFollowRequestsBanner(uid, accent, isDark, textColor, subColor),
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(28),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [accent.withAlpha(25), accent.withAlpha(8)],
+                            ),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: accent.withAlpha(18),
+                            ),
+                            child: Icon(
+                              Icons.notifications_none_rounded,
+                              size: 48,
+                              color: accent.withAlpha(150),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'No activity yet',
+                          style: GoogleFonts.outfit(
+                            color: textColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'When someone interacts with you,\nyou\'ll see it here.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            color: subColor,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'No activity yet',
-                    style: GoogleFonts.outfit(
-                      color: textColor,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'When someone interacts with you,\nyou\'ll see it here.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                      color: subColor,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             );
           }
           return ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: notifs.length,
-            itemBuilder: (ctx, i) =>
-                _buildNotifTile(notifs[i], accent, isDark, textColor, subColor),
+            itemCount: notifs.length + 1,
+            itemBuilder: (ctx, i) {
+              if (i == 0) {
+                return _buildFollowRequestsBanner(uid, accent, isDark, textColor, subColor);
+              }
+              return _buildNotifTile(notifs[i - 1], accent, isDark, textColor, subColor);
+            },
           );
         },
       ),
+    );
+  }
+
+  Widget _buildFollowRequestsBanner(
+    String uid,
+    Color accent,
+    bool isDark,
+    Color textColor,
+    Color subColor,
+  ) {
+    return FutureBuilder<List<dynamic>>(
+      future: _followService.getPendingRequests(uid),
+      builder: (ctx, snap) {
+        final count = snap.data?.length ?? 0;
+        if (count == 0) return const SizedBox.shrink();
+        return GestureDetector(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              SlideRightRoute(page: const FollowRequestsScreen()),
+            );
+            if (mounted) setState(() {});
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: accent.withAlpha(15),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accent.withAlpha(40)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accent.withAlpha(30),
+                  ),
+                  child: Icon(
+                    Icons.person_add_alt_1_rounded,
+                    color: accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Follow Requests',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$count pending request${count == 1 ? '' : 's'}',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: subColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right, color: subColor, size: 20),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

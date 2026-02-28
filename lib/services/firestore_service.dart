@@ -232,6 +232,14 @@ class FirestoreService {
     return snap.docs.map((d) => FollowModel.fromMap(d.data())).toList();
   }
 
+  Future<List<FollowModel>> getSentRequests(String uid) async {
+    final snap = await _follows
+        .where('followerId', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    return snap.docs.map((d) => FollowModel.fromMap(d.data())).toList();
+  }
+
   Future<List<String>> getFollowingUids(String uid) async {
     final follows = await getFollowing(uid);
     return follows.map((f) => f.followingId).toList();
@@ -1256,6 +1264,17 @@ class FirestoreService {
   // ═══════════════════════════════════════
   Future<void> deleteNotification(String id) async {
     await _notifications.doc(id).delete();
+  }
+
+  Future<void> deleteNotificationByTypeAndUsers(String toUid, String fromUid, String type) async {
+    final snap = await _notifications
+        .where('toUid', isEqualTo: toUid)
+        .where('fromUid', isEqualTo: fromUid)
+        .where('type', isEqualTo: type)
+        .get();
+    for (final doc in snap.docs) {
+      await doc.reference.delete();
+    }
   }
 
   Future<void> recalculateFollowCounts(String uid) async {

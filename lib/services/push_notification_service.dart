@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../screens/profile_screen.dart';
 import '../screens/messages_screen.dart';
+import '../screens/follow_requests_screen.dart';
 import '../utils/animations.dart';
 
 /// Top-level background handler — must be outside the class
@@ -115,10 +116,12 @@ class PushNotificationService {
 
     switch (type) {
       case 'follow':
-      case 'follow_request':
         if (fromUid.isNotEmpty) {
           navigator.push(SlideRightRoute(page: ProfileScreen(userId: fromUid)));
         }
+        break;
+      case 'follow_request':
+        navigator.push(SlideRightRoute(page: const FollowRequestsScreen()));
         break;
       case 'message':
         navigator.push(SlideRightRoute(page: const MessagesScreen()));

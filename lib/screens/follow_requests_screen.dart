@@ -15,21 +15,27 @@ class FollowRequestsScreen extends StatefulWidget {
   State<FollowRequestsScreen> createState() => _FollowRequestsScreenState();
 }
 
-class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
+class _FollowRequestsScreenState extends State<FollowRequestsScreen>
+    with SingleTickerProviderStateMixin {
   final _auth = AuthService();
   final _firestore = FirestoreService();
   final _followService = FollowService();
+  late TabController _tabController;
 
   List<UserModel> _requesters = [];
-  bool _loading = true;
+  List<UserModel> _sentTo = [];
+  bool _loadingReceived = true;
+  bool _loadingSent = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadReceived();
+    _loadSent();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadReceived() async {
     try {
       final uid = _auth.currentUser?.uid ?? '';
       final requests = await _followService.getPendingRequests(uid);
@@ -43,12 +49,35 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
       if (mounted) {
         setState(() {
           _requesters = users;
-          _loading = false;
+          _loadingReceived = false;
         });
       }
     } catch (e) {
       debugPrint('Error loading follow requests: $e');
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _loadingReceived = false);
+    }
+  }
+
+  Future<void> _loadSent() async {
+    try {
+      final uid = _auth.currentUser?.uid ?? '';
+      final sent = await _followService.getSentRequests(uid);
+      final users = <UserModel>[];
+      for (final request in sent) {
+        final targetUid = request.followingId;
+        if (targetUid.isEmpty) continue;
+        final user = await _firestore.getUser(targetUid);
+        if (user != null) users.add(user);
+      }
+      if (mounted) {
+        setState(() {
+          _sentTo = users;
+          _loadingSent = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading sent requests: $e');
+      if (mounted) setState(() => _loadingSent = false);
     }
   }
 
@@ -81,6 +110,31 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
     }
   }
 
+  Future<void> _cancelSent(String targetUid) async {
+    final uid = _auth.currentUser?.uid ?? '';
+    await _followService.cancelRequest(uid, targetUid);
+    if (mounted) {
+      setState(() {
+        _sentTo.removeWhere((u) => u.uid == targetUid);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Request cancelled'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -106,100 +160,199 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
           icon: Icon(Icons.arrow_back_ios_new, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: accent,
+          indicatorWeight: 3,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelColor: textColor,
+          unselectedLabelColor: subColor,
+          labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+          tabs: [
+            Tab(text: 'Received (${_requesters.length})'),
+            Tab(text: 'Sent (${_sentTo.length})'),
+          ],
+        ),
       ),
-      body: _loading
-          ? Center(child: CircularProgressIndicator(color: accent))
-          : _requesters.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.person_add_disabled, size: 64, color: subColor),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No pending requests',
-                    style: GoogleFonts.inter(color: subColor, fontSize: 15),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildReceivedTab(accent, isDark, textColor, subColor),
+          _buildSentTab(accent, isDark, textColor, subColor),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReceivedTab(Color accent, bool isDark, Color textColor, Color subColor) {
+    if (_loadingReceived) {
+      return Center(child: CircularProgressIndicator(color: accent));
+    }
+    if (_requesters.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_add_disabled, size: 64, color: subColor),
+            const SizedBox(height: 12),
+            Text(
+              'No pending requests',
+              style: GoogleFonts.inter(color: subColor, fontSize: 15),
+            ),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: _requesters.length,
+      itemBuilder: (ctx, i) {
+        final user = _requesters[i];
+        return ListTile(
+          onTap: () => Navigator.push(
+            context,
+            SlideRightRoute(page: ProfileScreen(userId: user.uid)),
+          ),
+          leading: CircleAvatar(
+            backgroundImage: user.profilePicUrl.isNotEmpty
+                ? CachedNetworkImageProvider(user.profilePicUrl)
+                : null,
+            child: user.profilePicUrl.isEmpty
+                ? const Icon(Icons.person, size: 20)
+                : null,
+          ),
+          title: Text(
+            user.username,
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+          subtitle: Text(
+            user.displayName,
+            style: GoogleFonts.inter(color: subColor, fontSize: 13),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 34,
+                child: ElevatedButton(
+                  onPressed: () => _accept(user.uid),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              itemCount: _requesters.length,
-              itemBuilder: (ctx, i) {
-                final user = _requesters[i];
-                return ListTile(
-                  onTap: () => Navigator.push(
-                    context,
-                    SlideRightRoute(page: ProfileScreen(userId: user.uid)),
-                  ),
-                  leading: CircleAvatar(
-                    backgroundImage: user.profilePicUrl.isNotEmpty
-                        ? CachedNetworkImageProvider(user.profilePicUrl)
-                        : null,
-                    child: user.profilePicUrl.isEmpty
-                        ? const Icon(Icons.person, size: 20)
-                        : null,
-                  ),
-                  title: Text(
-                    user.username,
+                  child: Text(
+                    'Accept',
                     style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+                      fontSize: 12,
+                      color: Colors.white,
                     ),
                   ),
-                  subtitle: Text(
-                    user.displayName,
-                    style: GoogleFonts.inter(color: subColor, fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 34,
+                child: OutlinedButton(
+                  onPressed: () => _reject(user.uid),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: subColor.withAlpha(80)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        height: 34,
-                        child: ElevatedButton(
-                          onPressed: () => _accept(user.uid),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                          child: Text(
-                            'Accept',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        height: 34,
-                        child: OutlinedButton(
-                          onPressed: () => _reject(user.uid),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: subColor.withAlpha(80)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                          ),
-                          child: Text(
-                            'Reject',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: subColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'Reject',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: subColor,
+                    ),
                   ),
-                );
-              },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSentTab(Color accent, bool isDark, Color textColor, Color subColor) {
+    if (_loadingSent) {
+      return Center(child: CircularProgressIndicator(color: accent));
+    }
+    if (_sentTo.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.send_rounded, size: 64, color: subColor),
+            const SizedBox(height: 12),
+            Text(
+              'No sent requests',
+              style: GoogleFonts.inter(color: subColor, fontSize: 15),
             ),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: _sentTo.length,
+      itemBuilder: (ctx, i) {
+        final user = _sentTo[i];
+        return ListTile(
+          onTap: () => Navigator.push(
+            context,
+            SlideRightRoute(page: ProfileScreen(userId: user.uid)),
+          ),
+          leading: CircleAvatar(
+            backgroundImage: user.profilePicUrl.isNotEmpty
+                ? CachedNetworkImageProvider(user.profilePicUrl)
+                : null,
+            child: user.profilePicUrl.isEmpty
+                ? const Icon(Icons.person, size: 20)
+                : null,
+          ),
+          title: Text(
+            user.username,
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+          subtitle: Text(
+            user.displayName,
+            style: GoogleFonts.inter(color: subColor, fontSize: 13),
+          ),
+          trailing: SizedBox(
+            height: 34,
+            child: OutlinedButton(
+              onPressed: () => _cancelSent(user.uid),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.redAccent.withAlpha(150)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

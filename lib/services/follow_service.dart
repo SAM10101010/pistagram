@@ -14,6 +14,13 @@ class FollowService {
       throw Exception('Cannot follow this user');
     }
 
+    // Check if already following or request pending
+    final existingFollow = await _firestoreService.getFollow(currentUid, targetUid);
+    if (existingFollow != null) {
+      if (existingFollow.status == 'accepted') return; // Already following
+      if (existingFollow.status == 'pending') return; // Request already sent
+    }
+
     // Check target account type
     final targetUser = await _firestoreService.getUser(targetUid);
     if (targetUser == null) throw Exception('User not found');
@@ -51,6 +58,9 @@ class FollowService {
     if (existing.status == 'accepted') {
       await _firestoreService.decrementFollowers(targetUid);
       await _firestoreService.decrementFollowing(currentUid);
+    } else if (existing.status == 'pending') {
+      // Clean up the follow_request notification when cancelling a pending request
+      await _firestoreService.deleteNotificationByTypeAndUsers(targetUid, currentUid, 'follow_request');
     }
   }
 
@@ -58,6 +68,9 @@ class FollowService {
     await _firestoreService.updateFollowStatus(followerId, followingId, 'accepted');
     await _firestoreService.incrementFollowers(followingId);
     await _firestoreService.incrementFollowing(followerId);
+
+    // Clean up the follow_request notification
+    await _firestoreService.deleteNotificationByTypeAndUsers(followingId, followerId, 'follow_request');
 
     await _firestoreService.addNotification(NotificationModel(
       id: _uuid.v4(),
@@ -70,12 +83,19 @@ class FollowService {
 
   Future<void> rejectRequest(String followerId, String followingId) async {
     await _firestoreService.deleteFollow(followerId, followingId);
+    // Clean up the follow_request notification
+    await _firestoreService.deleteNotificationByTypeAndUsers(followingId, followerId, 'follow_request');
   }
 
   Future<void> removeFollower(String uid, String followerUid) async {
+    final existing = await _firestoreService.getFollow(followerUid, uid);
+    if (existing == null) return;
+
     await _firestoreService.deleteFollow(followerUid, uid);
-    await _firestoreService.decrementFollowers(uid);
-    await _firestoreService.decrementFollowing(followerUid);
+    if (existing.status == 'accepted') {
+      await _firestoreService.decrementFollowers(uid);
+      await _firestoreService.decrementFollowing(followerUid);
+    }
   }
 
   Future<void> blockUser(String blockerUid, String blockedUid) async {
@@ -111,6 +131,16 @@ class FollowService {
 
   Future<List<FollowModel>> getPendingRequests(String uid) async {
     return await _firestoreService.getPendingRequests(uid);
+  }
+
+  Future<List<FollowModel>> getSentRequests(String uid) async {
+    return await _firestoreService.getSentRequests(uid);
+  }
+
+  Future<void> cancelRequest(String currentUid, String targetUid) async {
+    await _firestoreService.deleteFollow(currentUid, targetUid);
+    // Clean up the follow_request notification sent to the target
+    await _firestoreService.deleteNotificationByTypeAndUsers(targetUid, currentUid, 'follow_request');
   }
 
   Future<String> getRelationship(String currentUid, String targetUid) async {

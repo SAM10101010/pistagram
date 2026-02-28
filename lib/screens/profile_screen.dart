@@ -23,6 +23,7 @@ import 'post_detail_screen.dart';
 import 'chat_screen.dart';
 import 'achievements_screen.dart';
 import 'boost_reel_screen.dart';
+import 'follow_requests_screen.dart';
 import '../models/story_model.dart';
 import '../widgets/rotating_story_ring.dart';
 import 'story_viewer_screen.dart';
@@ -57,6 +58,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isOwn = true;
   List<Map<String, dynamic>> _earnedAchievements = [];
   List<StoryModel> _profileStories = [];
+  int _pendingRequestsCount = 0;
 
   @override
   bool get wantKeepAlive => true;
@@ -223,6 +225,16 @@ class _ProfileScreenState extends State<ProfileScreen>
         _profileStories = await _firestore.getActiveStories(uid);
       } catch (_) {
         _profileStories = [];
+      }
+
+      // Load pending follow requests count for own private account
+      if (_isOwn && (_user?.isPrivate ?? false)) {
+        try {
+          final pending = await _followService.getPendingRequests(uid);
+          _pendingRequestsCount = pending.length;
+        } catch (_) {
+          _pendingRequestsCount = 0;
+        }
       }
     } catch (e) {
       debugPrint('Error loading profile: $e');
@@ -912,29 +924,69 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildActionButtons(Color accent, bool isDark, Color textColor) {
     if (_isOwn) {
-      return ScaleTap(
-        onTap: () async {
-          await Navigator.push(
-            context,
-            SlideRightRoute(page: const EditProfileScreen()),
-          );
-          _loadProfile();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: accent, width: 1.5),
-          ),
-          child: Text(
-            'Edit Profile',
-            style: GoogleFonts.inter(
-              color: accent,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
+      return Column(
+        children: [
+          ScaleTap(
+            onTap: () async {
+              await Navigator.push(
+                context,
+                SlideRightRoute(page: const EditProfileScreen()),
+              );
+              _loadProfile();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: accent, width: 1.5),
+              ),
+              child: Text(
+                'Edit Profile',
+                style: GoogleFonts.inter(
+                  color: accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
             ),
           ),
-        ),
+          if ((_user?.isPrivate ?? false) && _pendingRequestsCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: ScaleTap(
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    SlideRightRoute(page: const FollowRequestsScreen()),
+                  );
+                  _loadProfile();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: accent.withAlpha(15),
+                    border: Border.all(color: accent.withAlpha(40)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_add_alt_1_rounded, color: accent, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$_pendingRequestsCount Follow Request${_pendingRequestsCount == 1 ? '' : 's'}',
+                        style: GoogleFonts.inter(
+                          color: accent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       );
     }
 

@@ -8,6 +8,7 @@ class FeedService {
   Future<List<ReelModel>> getHomeFeed(String uid, {int limit = 20}) async {
     final followingUids = await _firestoreService.getFollowingUids(uid);
     final blockedUids = await _firestoreService.getBlockedUids(uid);
+    final followingSet = followingUids.toSet();
 
     List<ReelModel> reels;
     if (followingUids.isEmpty) {
@@ -21,16 +22,26 @@ class FeedService {
       }
     }
 
-    // Filter out blocked users, private account reels (unless following), and duplicates
+    // Filter out blocked users, private/followers-only reels from non-followed users, and duplicates
     final seen = <String>{};
-    reels = reels.where((r) {
-      if (seen.contains(r.reelId)) return false;
-      if (blockedUids.contains(r.creatorUid)) return false;
-      seen.add(r.reelId);
-      return true;
-    }).toList();
+    final filtered = <ReelModel>[];
+    for (final r in reels) {
+      if (seen.contains(r.reelId)) continue;
+      if (blockedUids.contains(r.creatorUid)) continue;
 
-    return reels.take(limit).toList();
+      // For reels not from followed users, only allow public visibility
+      if (!followingSet.contains(r.creatorUid) && r.creatorUid != uid) {
+        if (r.visibility != 'public') continue;
+        // Also skip reels from private accounts
+        final creator = await _firestoreService.getUser(r.creatorUid);
+        if (creator == null || creator.isPrivate) continue;
+      }
+
+      seen.add(r.reelId);
+      filtered.add(r);
+    }
+
+    return filtered.take(limit).toList();
   }
 
   /// Explore feed: ONLY public reels, NO private account reels ever

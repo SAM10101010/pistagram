@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/saved_account.dart';
 import 'firestore_service.dart';
 import 'cache_service.dart';
+import 'push_notification_service.dart';
 
 class AccountManagerService {
   static const _storageKey = 'saved_accounts';
@@ -77,6 +78,9 @@ class AccountManagerService {
 
   /// Switch to a different saved account
   Future<void> switchAccount(String uid) async {
+    // Skip if already on this account
+    if (_auth.currentUser?.uid == uid) return;
+
     final accounts = await getSavedAccounts();
     final account = accounts.firstWhere(
       (a) => a.uid == uid,
@@ -88,48 +92,67 @@ class AccountManagerService {
       throw Exception('Credentials not found. Please re-login.');
     }
 
+    // Remove FCM token from current account before switching
+    final oldUid = _auth.currentUser?.uid;
+    if (oldUid != null) {
+      await PushNotificationService.removeToken(oldUid);
+    }
+
     // Clear all in-memory and disk caches before switching
     CacheService.instance.clearAll();
     await CacheService.instance.clearDiskCache();
 
-    // Sign out current user
-    await _auth.signOut();
-
-    // Sign in with stored credentials
+    // Get new credential FIRST, then sign in (replaces current Firebase session)
+    // Do NOT call _auth.signOut() beforehand — signInWithCredential and
+    // signInWithEmailAndPassword automatically replace the active session.
     if (password == '__google__') {
-      final gSignIn = GoogleSignIn();
-      // Always try silent sign-in first (currentUser is null on fresh instance)
-      GoogleSignInAccount? gUser = await gSignIn.signInSilently();
-
-      // If silent sign-in returned a different account, sign out and retry
-      if (gUser != null && gUser.email != account.email) {
-        await gSignIn.signOut();
-        gUser = await gSignIn.signInSilently();
-      }
-
-      // Only show picker as last resort
-      if (gUser == null || gUser.email != account.email) {
-        await gSignIn.signOut();
-        gUser = await gSignIn.signIn();
-      }
-
-      if (gUser == null) throw Exception('Google sign-in cancelled');
-      if (gUser.email != account.email) {
-        await gSignIn.signOut();
-        throw Exception('Please select the correct account (${account.email})');
-      }
-      final gAuth = await gUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: gAuth.accessToken,
-        idToken: gAuth.idToken,
-      );
-      await _auth.signInWithCredential(credential);
+      await _switchToGoogleAccount(account);
     } else {
       await _auth.signInWithEmailAndPassword(
         email: account.email,
         password: password,
       );
     }
+
+    // Save FCM token to the new account
+    await PushNotificationService.saveToken(uid);
+  }
+
+  Future<void> _switchToGoogleAccount(SavedAccount account) async {
+    final gSignIn = GoogleSignIn();
+
+    // Step 1: Try silent sign-in (no UI) — uses cached Google session
+    GoogleSignInAccount? gUser = await gSignIn.signInSilently();
+
+    if (gUser != null && gUser.email == account.email) {
+      // Cached session matches target — sign in silently with no picker
+      final gAuth = await gUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: gAuth.accessToken,
+        idToken: gAuth.idToken,
+      );
+      await _auth.signInWithCredential(credential);
+      return;
+    }
+
+    // Step 2: Cached session is wrong account or null — show picker
+    // Do NOT call gSignIn.signOut() here — that would destroy the cache
+    // for the currently cached account too. Just open the picker directly.
+    gUser = await gSignIn.signIn();
+
+    if (gUser == null) throw Exception('Google sign-in cancelled');
+    if (gUser.email != account.email) {
+      // User picked the wrong account — clean up and error
+      await gSignIn.signOut();
+      throw Exception('Please select the correct account (${account.email})');
+    }
+
+    final gAuth = await gUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: gAuth.accessToken,
+      idToken: gAuth.idToken,
+    );
+    await _auth.signInWithCredential(credential);
   }
 
   /// Update account display info (call after profile loads)
