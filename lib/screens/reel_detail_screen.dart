@@ -11,6 +11,7 @@ import 'comments_screen.dart';
 import 'reel_share_sheet.dart';
 import 'profile_screen.dart';
 import '../utils/animations.dart';
+import '../services/audio_playback_service.dart';
 
 class ReelDetailScreen extends StatefulWidget {
   final String reelId;
@@ -62,6 +63,11 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
       await controller.initialize();
       controller.setLooping(true);
       controller.play();
+
+      // Play associated music
+      if (reel.musicUrl.isNotEmpty) {
+        AudioPlaybackService.instance.play(reel.musicUrl);
+      }
 
       if (mounted) {
         setState(() {
@@ -119,6 +125,7 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
 
   @override
   void dispose() {
+    AudioPlaybackService.instance.stop();
     _videoController?.dispose();
     super.dispose();
   }
@@ -364,11 +371,12 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
                                       ? const Color(0xFF1A1A2E)
                                       : Colors.grey[200],
                                 );
-                          if (filter != null)
+                          if (filter != null) {
                             videoWidget = ColorFiltered(
                               colorFilter: filter,
                               child: videoWidget,
                             );
+                          }
                           return Stack(
                             alignment: Alignment.center,
                             fit: StackFit.expand,
@@ -443,6 +451,22 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
                                             fontSize: 11,
                                           ),
                                         ),
+                                        if (_reel!.musicUrl.isNotEmpty) ...[
+                                          const SizedBox(width: 8),
+                                          GestureDetector(
+                                            onTap: () {
+                                              AudioPlaybackService.instance.toggleMute();
+                                              setState(() {});
+                                            },
+                                            child: Icon(
+                                              AudioPlaybackService.instance.isMuted
+                                                  ? Icons.volume_off_rounded
+                                                  : Icons.volume_up_rounded,
+                                              color: Colors.white70,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

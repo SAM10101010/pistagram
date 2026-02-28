@@ -73,11 +73,12 @@ class _SearchScreenState extends State<SearchScreen> {
     } catch (e) {
       debugPrint('Search error: $e');
     }
-    if (mounted)
+    if (mounted) {
       setState(() {
         _searching = false;
         _loaded = true;
       });
+    }
   }
 
   Future<void> _removeHistoryItem(String query) async {

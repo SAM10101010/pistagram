@@ -533,6 +533,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           SafeArea(
             top: false,
+            bottom: false,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(

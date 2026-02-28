@@ -14,6 +14,7 @@ import 'my_redemptions_screen.dart';
 import 'streak_screen.dart';
 import 'leaderboard_screen.dart';
 import 'mystery_box_screen.dart';
+import 'transfer_points_screen.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -302,30 +303,58 @@ class _WalletScreenState extends State<WalletScreen>
                       ),
                     ],
                     const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          SlideRightRoute(page: const RewardStoreScreen()),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.push(
+                              context,
+                              SlideRightRoute(page: const RewardStoreScreen()),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              elevation: 4,
+                            ),
+                            child: Text(
+                              'Redeem Rewards',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 4,
                         ),
-                        child: Text(
-                          'Redeem Rewards',
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.push(
+                              context,
+                              SlideRightRoute(page: const TransferPointsScreen()),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.greenAccent.shade700,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              elevation: 4,
+                            ),
+                            child: Text(
+                              'Send Points',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),

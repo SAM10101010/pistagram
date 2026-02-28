@@ -97,6 +97,8 @@ class AuthService {
 
   /// Sign in with Google
   Future<UserCredential> signInWithGoogle() async {
+    // Force account picker by clearing cached credentials
+    await _googleSignIn.signOut();
     final gUser = await _googleSignIn.signIn();
     if (gUser == null) throw Exception('Google sign-in cancelled');
 

@@ -5,9 +5,10 @@ class NotificationModel {
   final String toUid;
   final String fromUid;
   final String
-  type; // follow, follow_request, like, comment, message, points, reward
+  type; // follow, follow_request, like, comment, comment_reply, comment_like, message, points, reward, story_reaction
   final String reelId;
   final String postId;
+  final String commentId;
   final String message;
   final bool read;
   final DateTime createdAt;
@@ -19,6 +20,7 @@ class NotificationModel {
     required this.type,
     this.reelId = '',
     this.postId = '',
+    this.commentId = '',
     this.message = '',
     this.read = false,
     DateTime? createdAt,
@@ -32,6 +34,7 @@ class NotificationModel {
       type: map['type'] ?? '',
       reelId: map['reelId'] ?? '',
       postId: map['postId'] ?? '',
+      commentId: map['commentId'] ?? '',
       message: map['message'] ?? '',
       read: map['read'] ?? false,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -46,6 +49,7 @@ class NotificationModel {
       'type': type,
       'reelId': reelId,
       'postId': postId,
+      'commentId': commentId,
       'message': message,
       'read': read,
       'createdAt': Timestamp.fromDate(createdAt),

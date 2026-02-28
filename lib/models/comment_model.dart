@@ -7,6 +7,8 @@ class CommentModel {
   final String text;
   final String parentId; // for replies
   final int likesCount;
+  final List<String> likedByUids;
+  final int repliesCount;
   final DateTime createdAt;
 
   CommentModel({
@@ -16,6 +18,8 @@ class CommentModel {
     required this.text,
     this.parentId = '',
     this.likesCount = 0,
+    this.likedByUids = const [],
+    this.repliesCount = 0,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -27,6 +31,8 @@ class CommentModel {
       text: map['text'] ?? '',
       parentId: map['parentId'] ?? '',
       likesCount: map['likesCount'] ?? 0,
+      likedByUids: List<String>.from(map['likedByUids'] ?? []),
+      repliesCount: map['repliesCount'] ?? 0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -39,6 +45,8 @@ class CommentModel {
       'text': text,
       'parentId': parentId,
       'likesCount': likesCount,
+      'likedByUids': likedByUids,
+      'repliesCount': repliesCount,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }

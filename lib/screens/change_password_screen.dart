@@ -35,6 +35,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null || user.email == null) throw Exception('Not signed in');
 
+      // Require email to be verified before allowing password change
+      if (!user.emailVerified) {
+        throw Exception(
+          'Please verify your email address before changing your password.',
+        );
+      }
+
       // Re-authenticate
       final credential = EmailAuthProvider.credential(
         email: user.email!,

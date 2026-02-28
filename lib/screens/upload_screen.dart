@@ -2708,6 +2708,10 @@ class _UploadScreenState extends State<UploadScreen>
                                           child: Text('48 Hours'),
                                         ),
                                         DropdownMenuItem(
+                                          value: 72,
+                                          child: Text('3 Days'),
+                                        ),
+                                        DropdownMenuItem(
                                           value: 168,
                                           child: Text('1 Week'),
                                         ),
@@ -3046,7 +3050,7 @@ class _UploadScreenState extends State<UploadScreen>
     if (isVideo) {
       file = await _imagePicker.pickVideo(
         source: source,
-        maxDuration: const Duration(minutes: 5),
+        maxDuration: const Duration(seconds: 30),
       );
     } else {
       file = await _imagePicker.pickImage(source: source, imageQuality: 85);

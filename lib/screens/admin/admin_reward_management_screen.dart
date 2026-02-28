@@ -293,8 +293,9 @@ class _AdminRewardManagementScreenState
                       PopupMenuButton<String>(
                         icon: Icon(Icons.more_vert, color: subColor),
                         onSelected: (val) {
-                          if (val == 'edit')
+                          if (val == 'edit') {
                             _showAddEditDialog(existing: reward);
+                          }
                           if (val == 'delete') _delete(reward);
                         },
                         itemBuilder: (ctx) => [

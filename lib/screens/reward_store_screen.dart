@@ -31,12 +31,13 @@ class _RewardStoreScreenState extends State<RewardStoreScreen> {
   Future<void> _load() async {
     final rewards = await _firestoreService.getActiveRewards();
     final points = await _pointsService.getPoints();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _rewards = rewards;
         _userPoints = points;
         _loading = false;
       });
+    }
   }
 
   Future<void> _redeem(RewardModel reward) async {

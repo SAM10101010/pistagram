@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
+import '../models/point_transfer_model.dart';
+import '../models/notification_model.dart';
 import 'firestore_service.dart';
 import 'fraud_service.dart';
 import 'level_service.dart';
@@ -217,5 +219,71 @@ class PointsService {
 
   Future<List<TransactionModel>> getTransactionHistory(String uid) async {
     return await _firestoreService.getUserTransactions(uid);
+  }
+
+  /// Transfer points from sender to receiver with a 10% fee (ceiling).
+  /// Returns the net amount received, or throws on failure.
+  Future<int> transferPoints(String senderUid, String receiverUid, int amount) async {
+    if (senderUid == receiverUid) {
+      throw Exception('Cannot transfer points to yourself');
+    }
+    if (amount <= 0) {
+      throw Exception('Transfer amount must be positive');
+    }
+
+    // Verify sender account is active
+    final sender = await _firestoreService.getUser(senderUid);
+    if (sender == null || sender.accountStatus != 'active') {
+      throw Exception('Your account is not active');
+    }
+
+    // Verify receiver exists and is active
+    final receiver = await _firestoreService.getUser(receiverUid);
+    if (receiver == null || receiver.accountStatus != 'active') {
+      throw Exception('Recipient account is not active');
+    }
+
+    // Check sender balance
+    final prefs = await SharedPreferences.getInstance();
+    final currentBalance = prefs.getInt(_pointsKey) ?? 0;
+    if (currentBalance < amount) {
+      throw Exception('Insufficient points balance');
+    }
+
+    // Calculate fee (10%, rounded up)
+    final fee = (amount * 0.10).ceil();
+    final netAmount = amount - fee;
+
+    // Deduct from sender
+    final deducted = await redeemPoints(amount, senderUid, 'Transfer to @${receiver.username}');
+    if (!deducted) {
+      throw Exception('Failed to deduct points');
+    }
+
+    // Credit to receiver
+    await addBonusPoints(netAmount, receiverUid, 'Transfer from @${sender.username}');
+
+    // Log the transfer
+    final transfer = PointTransferModel(
+      id: _uuid.v4(),
+      senderId: senderUid,
+      receiverId: receiverUid,
+      grossAmount: amount,
+      fee: fee,
+      netAmount: netAmount,
+    );
+    await _firestoreService.logPointTransfer(transfer);
+
+    // Create notification for the receiver
+    final notif = NotificationModel(
+      id: _uuid.v4(),
+      toUid: receiverUid,
+      fromUid: senderUid,
+      type: 'points',
+      message: 'sent you $netAmount points',
+    );
+    await _firestoreService.addNotification(notif);
+
+    return netAmount;
   }
 }

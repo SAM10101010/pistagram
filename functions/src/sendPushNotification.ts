@@ -4,7 +4,7 @@ import * as admin from 'firebase-admin';
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-const PUSH_TYPES = ['follow', 'follow_request', 'like', 'comment', 'message'];
+const PUSH_TYPES = ['follow', 'follow_request', 'like', 'comment', 'comment_reply', 'comment_like', 'message', 'story_reaction', 'points'];
 
 export const sendPushNotification = functions.firestore
   .document('notifications/{notifId}')
@@ -61,9 +61,25 @@ export const sendPushNotification = functions.firestore
         title = 'New Comment';
         body = `${senderName} commented: ${message}`;
         break;
+      case 'comment_reply':
+        title = 'New Reply';
+        body = `${senderName} replied to your comment.`;
+        break;
+      case 'comment_like':
+        title = 'Comment Liked';
+        body = `${senderName} liked your comment.`;
+        break;
       case 'message':
         title = 'New Message';
         body = `${senderName} sent you a message.`;
+        break;
+      case 'story_reaction':
+        title = 'Story Reaction';
+        body = `${senderName} reacted ${message || ''} to your story.`;
+        break;
+      case 'points':
+        title = 'Points Received';
+        body = `${senderName} ${message || 'sent you points'}`;
         break;
     }
 

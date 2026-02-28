@@ -5,9 +5,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:uuid/uuid.dart';
+import 'dart:async';
 import '../models/story_model.dart';
 import '../models/user_model.dart';
 import '../models/comment_model.dart';
+import '../models/notification_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../utils/animations.dart';
@@ -39,6 +41,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
   // Interaction state
   bool _isLiked = false;
+  String? _myReaction;
+  Map<String, int> _reactionCounts = {};
+  StreamSubscription<Map<String, int>>? _reactionCountsSub;
   final _commentCtrl = TextEditingController();
   final _commentFocusNode = FocusNode();
   bool _isCommenting = false;
@@ -87,12 +92,26 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _progressCtrl.reset();
     _commentCtrl.clear();
     _isCommenting = false;
+    _reactionCountsSub?.cancel();
 
     final story = widget.stories[_currentIndex];
     final uid = _auth.currentUser?.uid ?? '';
 
     // Update like state
     _isLiked = story.likedByUids.contains(uid);
+
+    // Load user's existing reaction
+    _myReaction = null;
+    if (uid.isNotEmpty) {
+      _firestore.getUserStoryReaction(story.storyId, uid).then((r) {
+        if (mounted) setState(() => _myReaction = r);
+      });
+    }
+
+    // Subscribe to reaction counts
+    _reactionCountsSub = _firestore.getStoryReactionCounts(story.storyId).listen((counts) {
+      if (mounted) setState(() => _reactionCounts = counts);
+    });
 
     // Mark as viewed
     if (uid.isNotEmpty && !story.viewerUids.contains(uid)) {
@@ -233,6 +252,36 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     );
   }
 
+  Future<void> _reactToStory(String emoji) async {
+    HapticFeedback.lightImpact();
+    final uid = _auth.currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+
+    final story = widget.stories[_currentIndex];
+
+    if (_myReaction == emoji) {
+      // Toggle off — remove reaction
+      setState(() => _myReaction = null);
+      await _firestore.removeStoryReaction(story.storyId, uid);
+    } else {
+      // Set new reaction
+      setState(() => _myReaction = emoji);
+      await _firestore.addStoryReaction(story.storyId, uid, emoji);
+
+      // Send notification to story creator (only if not own story)
+      if (widget.creator.uid != uid) {
+        final notif = NotificationModel(
+          id: _uuid.v4(),
+          toUid: widget.creator.uid,
+          fromUid: uid,
+          type: 'story_reaction',
+          message: emoji,
+        );
+        await _firestore.addNotification(notif);
+      }
+    }
+  }
+
   void _openShareScreen() {
     _progressCtrl.stop();
     _videoCtrl?.pause();
@@ -250,6 +299,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
   @override
   void dispose() {
+    _reactionCountsSub?.cancel();
     _progressCtrl.dispose();
     _videoCtrl?.dispose();
     _commentCtrl.dispose();
@@ -520,10 +570,73 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   }
 
   Widget _buildInteractionBottom(StoryModel story) {
+    final totalReactions = _reactionCounts.values.fold<int>(0, (a, b) => a + b);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Emoji bar (visible when commenting)
+        // Reaction bar (always visible when not commenting)
+        if (!_isCommenting)
+          Container(
+            height: 44,
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: _emojis.map((emoji) {
+                final isSelected = _myReaction == emoji;
+                final count = _reactionCounts[emoji] ?? 0;
+                return GestureDetector(
+                  onTap: () => _reactToStory(emoji),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.25)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          emoji,
+                          style: TextStyle(
+                            fontSize: isSelected ? 20 : 18,
+                          ),
+                        ),
+                        if (count > 0)
+                          Text(
+                            '$count',
+                            style: GoogleFonts.inter(
+                              color: Colors.white70,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        // Total reaction count
+        if (!_isCommenting && totalReactions > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '$totalReactions reaction${totalReactions == 1 ? '' : 's'}',
+              style: GoogleFonts.inter(
+                color: Colors.white54,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        // Emoji bar for comment text insertion (visible when commenting)
         if (_isCommenting)
           SizedBox(
             height: 40,

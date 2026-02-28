@@ -101,9 +101,14 @@ class _AuthScreenState extends State<AuthScreen>
           _accountManager.updateAccountInfo(uid);
         }
 
-        // If adding account, just pop back to account switcher
+        // If adding account, navigate to a fresh HomeScreen
         if (widget.isAddAccount) {
-          if (mounted) Navigator.pop(context);
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+              (route) => false,
+            );
+          }
           return;
         }
 
@@ -236,7 +241,7 @@ class _AuthScreenState extends State<AuthScreen>
                       ClipRRect(
                         borderRadius: BorderRadius.circular(24),
                         child: Image.asset(
-                          'assets/logo.png',
+                          'assets/logo_app.png',
                           width: 88,
                           height: 88,
                           fit: BoxFit.cover,

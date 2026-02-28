@@ -16,6 +16,7 @@ import '../services/series_service.dart';
 import '../services/campaign_service.dart';
 import '../utils/animations.dart';
 import '../services/cache_service.dart';
+import '../services/audio_playback_service.dart';
 import 'comments_screen.dart';
 import 'profile_screen.dart';
 
@@ -48,6 +49,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
   final Map<String, UserModel> _creatorCache = {};
   final Set<String> _likedIds = {};
   final Set<String> _savedIds = {};
+  final Set<String> _vaultIds = {};
   Set<String> _followingIds = {};
   Set<String> _completedReels = {};
   final Map<String, String> _seriesCache = {}; // reelId -> series title
@@ -73,8 +75,13 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
     final isVisible = widget.activeTabNotifier?.value == 1;
     if (isVisible) {
       _controllers[_currentIndex]?.play();
+      // Resume music if current reel has it
+      if (_reels.isNotEmpty && _reels[_currentIndex].musicUrl.isNotEmpty) {
+        AudioPlaybackService.instance.play(_reels[_currentIndex].musicUrl);
+      }
     } else {
       _controllers[_currentIndex]?.pause();
+      AudioPlaybackService.instance.pause();
     }
   }
 
@@ -83,10 +90,14 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
     if (_controllers.isEmpty || _currentIndex >= _controllers.length) return;
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _controllers[_currentIndex]?.pause();
+      AudioPlaybackService.instance.pause();
     } else if (state == AppLifecycleState.resumed) {
       // Only resume if the reels tab is active
       if (widget.activeTabNotifier == null || widget.activeTabNotifier!.value == 1) {
         _controllers[_currentIndex]?.play();
+        if (_reels.isNotEmpty && _reels[_currentIndex].musicUrl.isNotEmpty) {
+          AudioPlaybackService.instance.play(_reels[_currentIndex].musicUrl);
+        }
       }
     }
   }
@@ -118,6 +129,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
         }
         if (await _firestore.hasLikedReel(uid, reel.reelId)) _likedIds.add(reel.reelId);
         if (await _firestore.hasSavedReel(uid, reel.reelId)) _savedIds.add(reel.reelId);
+        if (await _firestore.isInVault(uid, reel.reelId)) _vaultIds.add(reel.reelId);
       }
 
       // Init video controllers
@@ -158,7 +170,13 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       // Track view
       _firestore.incrementViews(reelId);
 
-      if (index == _currentIndex) controller.play();
+      if (index == _currentIndex) {
+        controller.play();
+        // Start music for the first reel
+        if (_reels[index].musicUrl.isNotEmpty) {
+          AudioPlaybackService.instance.play(_reels[index].musicUrl);
+        }
+      }
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Error initializing video $index: $e');
@@ -202,6 +220,14 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
     _controllers[_currentIndex]?.pause();
     _currentIndex = index;
     _controllers[index]?.play();
+
+    // Play music for the new reel
+    final reel = _reels[index];
+    if (reel.musicUrl.isNotEmpty) {
+      AudioPlaybackService.instance.play(reel.musicUrl);
+    } else {
+      AudioPlaybackService.instance.stop();
+    }
 
     if (index + 1 < _reels.length) _initController(index + 1);
 
@@ -248,6 +274,50 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
     setState(() {});
   }
 
+  Future<void> _toggleVault(int index) async {
+    HapticFeedback.lightImpact();
+    final uid = _authService.currentUser?.uid ?? '';
+    final reelId = _reels[index].reelId;
+    if (_vaultIds.contains(reelId)) {
+      await _firestore.removeFromVault(uid, reelId);
+      _vaultIds.remove(reelId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Removed from vault',
+              style: GoogleFonts.inter(),
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } else {
+      await _firestore.addToVault(uid, reelId);
+      _vaultIds.add(reelId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Added to vault',
+              style: GoogleFonts.inter(),
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    }
+    setState(() {});
+  }
+
   Future<void> _toggleFollow(String targetUid) async {
     final uid = _authService.currentUser?.uid ?? '';
     if (_followingIds.contains(targetUid)) {
@@ -264,6 +334,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.activeTabNotifier?.removeListener(_onTabVisibilityChanged);
+    AudioPlaybackService.instance.stop();
     for (final c in _controllers) { c?.dispose(); }
     for (final t in _trackers) { t?.dispose(); }
     _pageController.dispose();
@@ -323,6 +394,75 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       _userRatings[reel.reelId] = result;
       if (mounted) setState(() {});
     }
+  }
+
+  void _showShareSheet(int index) {
+    final reel = _reels[index];
+    final isInVault = _vaultIds.contains(reel.reelId);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white54.withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined, color: Colors.white),
+              title: Text(
+                'Share',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                // Share action placeholder
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                isInVault ? Icons.lock_open_rounded : Icons.lock_rounded,
+                color: isInVault ? Colors.orangeAccent : Colors.white,
+              ),
+              title: Text(
+                isInVault ? 'Remove from Vault' : 'Add to Vault',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              subtitle: Text(
+                isInVault
+                    ? 'This reel is in your private vault'
+                    : 'Hide this reel in your private vault',
+                style: GoogleFonts.inter(
+                  color: Colors.white38,
+                  fontSize: 12,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _toggleVault(index);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   String _formatExpiry(DateTime? expiry) {
@@ -711,6 +851,22 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
                       child: Text(reel.musicName, style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
+                    if (reel.musicUrl.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          AudioPlaybackService.instance.toggleMute();
+                          setState(() {});
+                        },
+                        child: Icon(
+                          AudioPlaybackService.instance.isMuted
+                              ? Icons.volume_off_rounded
+                              : Icons.volume_up_rounded,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -752,7 +908,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
                 icon: Icons.share_outlined,
                 label: 'Share',
                 color: Colors.white,
-                onTap: () {},
+                onTap: () => _showShareSheet(index),
               ),
               const SizedBox(height: 18),
               _buildActionBtn(

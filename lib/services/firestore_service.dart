@@ -8,10 +8,11 @@ import '../models/transaction_model.dart';
 import '../models/notification_model.dart';
 import '../models/comment_model.dart';
 import '../models/message_model.dart';
-import 'push_notification_service.dart';
 import '../models/reward_model.dart';
 import '../models/report_model.dart';
 import '../models/block_model.dart';
+import '../models/story_reaction_model.dart';
+import '../models/point_transfer_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -47,6 +48,12 @@ class FirestoreService {
       _db.collection('posts');
   CollectionReference<Map<String, dynamic>> get _stories =>
       _db.collection('stories');
+  CollectionReference<Map<String, dynamic>> get _storyReactions =>
+      _db.collection('storyReactions');
+  CollectionReference<Map<String, dynamic>> get _pointTransfers =>
+      _db.collection('pointTransfers');
+  CollectionReference<Map<String, dynamic>> get _vaultReels =>
+      _db.collection('vaultReels');
 
   // ═══════════════════════════════════════
   // USERS
@@ -416,6 +423,60 @@ class FirestoreService {
         );
   }
 
+  Future<void> likeComment(String commentId, String uid, {String? commentOwnerUid, String? reelId, String? postId}) async {
+    await _comments.doc(commentId).update({
+      'likedByUids': FieldValue.arrayUnion([uid]),
+      'likesCount': FieldValue.increment(1),
+    });
+    // Send notification to comment owner
+    if (commentOwnerUid != null && commentOwnerUid != uid) {
+      await addNotification(
+        NotificationModel(
+          id: '${uid}_comment_like_$commentId',
+          toUid: commentOwnerUid,
+          fromUid: uid,
+          type: 'comment_like',
+          message: 'liked your comment',
+          commentId: commentId,
+          reelId: reelId ?? '',
+          postId: postId ?? '',
+        ),
+      );
+    }
+  }
+
+  Future<void> unlikeComment(String commentId, String uid) async {
+    await _comments.doc(commentId).update({
+      'likedByUids': FieldValue.arrayRemove([uid]),
+      'likesCount': FieldValue.increment(-1),
+    });
+  }
+
+  Future<void> addReply(CommentModel reply, {String? parentCommentUid, String? contentCreatorUid}) async {
+    final batch = _db.batch();
+    batch.set(_comments.doc(reply.id), reply.toMap());
+    // Increment parent comment's reply count
+    batch.update(_comments.doc(reply.parentId), {
+      'repliesCount': FieldValue.increment(1),
+    });
+    await batch.commit();
+
+    // Notify parent comment author about the reply
+    if (parentCommentUid != null && parentCommentUid != reply.uid) {
+      await addNotification(
+        NotificationModel(
+          id: 'reply_${reply.id}',
+          toUid: parentCommentUid,
+          fromUid: reply.uid,
+          type: 'comment_reply',
+          message: 'replied to your comment',
+          commentId: reply.parentId,
+          reelId: reply.reelId,
+        ),
+      );
+    }
+  }
+
   // ═══════════════════════════════════════
   // TRANSACTIONS
   // ═══════════════════════════════════════
@@ -440,8 +501,8 @@ class FirestoreService {
   // ═══════════════════════════════════════
   Future<void> addNotification(NotificationModel notif) async {
     await _notifications.doc(notif.id).set(notif.toMap());
-    // Send push notification to recipient's device(s)
-    PushNotificationService.sendPushToUser(notif);
+    // Push notification is sent automatically via Cloud Function trigger
+    // (functions/src/sendPushNotification.ts) when this document is created.
   }
 
   Future<void> markNotificationRead(String id) async {
@@ -551,6 +612,16 @@ class FirestoreService {
       'text': newText,
       'isEdited': true,
     });
+    // Update the chat's lastMessage if this was the latest message
+    final lastMsg = await _chats
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+    if (lastMsg.docs.isNotEmpty && lastMsg.docs.first.id == messageId) {
+      await _chats.doc(chatId).update({'lastMessage': newText});
+    }
   }
 
   // ═══════════════════════════════════════
@@ -967,6 +1038,86 @@ class FirestoreService {
           (snap) =>
               snap.docs.map((d) => CommentModel.fromMap(d.data())).toList(),
         );
+  }
+
+  // ═══════════════════════════════════════
+  // STORY REACTIONS
+  // ═══════════════════════════════════════
+  Future<void> addStoryReaction(String storyId, String userId, String reactionType) async {
+    final docId = '${userId}_$storyId';
+    final reaction = StoryReactionModel(
+      id: docId,
+      storyId: storyId,
+      userId: userId,
+      reactionType: reactionType,
+    );
+    await _storyReactions.doc(docId).set(reaction.toMap());
+  }
+
+  Future<void> removeStoryReaction(String storyId, String userId) async {
+    final docId = '${userId}_$storyId';
+    await _storyReactions.doc(docId).delete();
+  }
+
+  Future<String?> getUserStoryReaction(String storyId, String userId) async {
+    final docId = '${userId}_$storyId';
+    final doc = await _storyReactions.doc(docId).get();
+    if (!doc.exists) return null;
+    return doc.data()?['reactionType'] as String?;
+  }
+
+  Stream<Map<String, int>> getStoryReactionCounts(String storyId) {
+    return _storyReactions
+        .where('storyId', isEqualTo: storyId)
+        .snapshots()
+        .map((snap) {
+      final counts = <String, int>{};
+      for (final doc in snap.docs) {
+        final emoji = doc.data()['reactionType'] as String? ?? '';
+        if (emoji.isNotEmpty) {
+          counts[emoji] = (counts[emoji] ?? 0) + 1;
+        }
+      }
+      return counts;
+    });
+  }
+
+  // ═══════════════════════════════════════
+  // POINT TRANSFERS
+  // ═══════════════════════════════════════
+  Future<void> logPointTransfer(PointTransferModel transfer) async {
+    await _pointTransfers.doc(transfer.id).set(transfer.toMap());
+  }
+
+  // ═══════════════════════════════════════
+  // VAULT REELS
+  // ═══════════════════════════════════════
+  Future<void> addToVault(String uid, String reelId) async {
+    await _vaultReels.doc('${uid}_$reelId').set({
+      'uid': uid,
+      'reelId': reelId,
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> removeFromVault(String uid, String reelId) async {
+    await _vaultReels.doc('${uid}_$reelId').delete();
+  }
+
+  Future<bool> isInVault(String uid, String reelId) async {
+    final doc = await _vaultReels.doc('${uid}_$reelId').get();
+    return doc.exists;
+  }
+
+  Future<List<String>> getVaultReelIds(String uid) async {
+    final snap = await _vaultReels
+        .where('uid', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snap.docs
+        .where((d) => d.data()['reelId'] != null)
+        .map((d) => d.data()['reelId'] as String)
+        .toList();
   }
 
   // ═══════════════════════════════════════

@@ -104,8 +104,9 @@ class CampaignService {
     if (!doc.exists) return false;
 
     final data = doc.data()!;
-    if (data['completed'] != true || data['rewardClaimed'] == true)
+    if (data['completed'] != true || data['rewardClaimed'] == true) {
       return false;
+    }
 
     final campaign = await _getCampaign(campaignId);
     if (campaign == null) return false;

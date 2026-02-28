@@ -42,7 +42,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _navigate() async {
     final authService = AuthService();
-    final user = authService.currentUser;
+    // Wait for Firebase Auth to fully restore persisted state before checking
+    final user = await authService.authStateChanges.first;
     Widget destination;
 
     if (user == null) {
@@ -106,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ClipRRect(
                     borderRadius: BorderRadius.circular(28),
                     child: Image.asset(
-                      'assets/logo.png',
+                      'assets/logo_app.png',
                       width: 110,
                       height: 110,
                       fit: BoxFit.cover,

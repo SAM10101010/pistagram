@@ -302,7 +302,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ? Future.value(friendCache[uid])
                                   : _firestore.getUser(uid),
                               builder: (ctx, snap) {
-                                if (!snap.hasData)
+                                if (!snap.hasData) {
                                   return const ListTile(
                                     leading: CircleAvatar(
                                       child: CircularProgressIndicator(
@@ -310,6 +310,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                     ),
                                   );
+                                }
                                 final u = snap.data!;
                                 friendCache[uid] = u;
                                 return Container(

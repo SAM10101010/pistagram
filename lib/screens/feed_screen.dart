@@ -71,17 +71,21 @@ class _FeedScreenState extends State<FeedScreen>
       // Restore cached liked/saved IDs for instant display
       final cache = CacheService.instance;
       final cachedLikedPosts = cache.getData<List>('likedPostIds_$uid');
-      if (cachedLikedPosts != null)
+      if (cachedLikedPosts != null) {
         _likedPostIds.addAll(cachedLikedPosts.cast<String>());
+      }
       final cachedSavedPosts = cache.getData<List>('savedPostIds_$uid');
-      if (cachedSavedPosts != null)
+      if (cachedSavedPosts != null) {
         _savedPostIds.addAll(cachedSavedPosts.cast<String>());
+      }
       final cachedLikedReels = cache.getData<List>('likedReelIds_$uid');
-      if (cachedLikedReels != null)
+      if (cachedLikedReels != null) {
         _likedReelIds.addAll(cachedLikedReels.cast<String>());
+      }
       final cachedSavedReels = cache.getData<List>('savedReelIds_$uid');
-      if (cachedSavedReels != null)
+      if (cachedSavedReels != null) {
         _savedReelIds.addAll(cachedSavedReels.cast<String>());
+      }
 
       // Cache own user profile
       if (!_userCache.containsKey(uid)) {
@@ -125,16 +129,18 @@ class _FeedScreenState extends State<FeedScreen>
         final creator = _userCache[r.creatorUid];
         if (creator == null) return false;
         if (creator.accountType == 'private' &&
-            !followingSet.contains(r.creatorUid))
+            !followingSet.contains(r.creatorUid)) {
           return false;
+        }
         return true;
       }).toList();
       _forYouPosts = publicPosts.where((p) {
         final creator = _userCache[p.creatorUid];
         if (creator == null) return false;
         if (creator.accountType == 'private' &&
-            !followingSet.contains(p.creatorUid))
+            !followingSet.contains(p.creatorUid)) {
           return false;
+        }
         return true;
       }).toList();
 
@@ -424,7 +430,18 @@ class _FeedScreenState extends State<FeedScreen>
     bool showFollowBanner = false;
 
     if (_selectedTab == 0) {
-      final merged = [..._forYouReels, ..._forYouPosts];
+      // For You: merge public content + following content, deduplicate, sort by time
+      final reelIds = <String>{};
+      final postIds = <String>{};
+      final mergedReels = <ReelModel>[];
+      final mergedPosts = <PostModel>[];
+      for (final r in [..._forYouReels, ..._followingReels]) {
+        if (reelIds.add(r.reelId)) mergedReels.add(r);
+      }
+      for (final p in [..._forYouPosts, ..._followingPosts]) {
+        if (postIds.add(p.postId)) mergedPosts.add(p);
+      }
+      final merged = [...mergedReels, ...mergedPosts];
       merged.sort((a, b) {
         final da = a is ReelModel ? a.createdAt : (a as PostModel).createdAt;
         final db = b is ReelModel ? b.createdAt : (b as PostModel).createdAt;
@@ -547,7 +564,7 @@ class _FeedScreenState extends State<FeedScreen>
           // App logo
           ClipOval(
             child: Image.asset(
-              'assets/logo.png',
+              'assets/logo_app.png',
               width: 38,
               height: 38,
               fit: BoxFit.cover,
@@ -1141,6 +1158,12 @@ class _FeedScreenState extends State<FeedScreen>
                   ),
                   child: Icon(Icons.send_outlined, color: textColor, size: 24),
                 ),
+                const SizedBox(width: 16),
+                ScaleTap(
+                  onTap: () =>
+                      _shareContent('reel', reel.reelId, reel.caption),
+                  child: Icon(Icons.ios_share, color: textColor, size: 24),
+                ),
                 const Spacer(),
                 ScaleTap(
                   onTap: () => _toggleSave(reel),
@@ -1590,6 +1613,12 @@ class _FeedScreenState extends State<FeedScreen>
                     ),
                   ),
                   child: Icon(Icons.send_outlined, color: textColor, size: 24),
+                ),
+                const SizedBox(width: 16),
+                ScaleTap(
+                  onTap: () =>
+                      _shareContent('post', post.postId, post.caption),
+                  child: Icon(Icons.ios_share, color: textColor, size: 24),
                 ),
                 const Spacer(),
                 if (post.mediaUrls.length > 1) ...[

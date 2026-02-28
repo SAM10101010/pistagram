@@ -5,8 +5,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
-import '../models/notification_model.dart';
 import '../screens/profile_screen.dart';
 import '../screens/messages_screen.dart';
 import '../utils/animations.dart';
@@ -22,13 +20,6 @@ class PushNotificationService {
   static final FlutterLocalNotificationsPlugin _localNotif =
       FlutterLocalNotificationsPlugin();
   static GlobalKey<NavigatorState>? _navigatorKey;
-  static final Dio _dio = Dio();
-  static final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  // TODO: Replace with your FCM server key from Firebase Console:
-  // Project Settings > Cloud Messaging > Server key
-  static const String _fcmServerKey = 'YOUR_FCM_SERVER_KEY_HERE';
-  static const String _fcmUrl = 'https://fcm.googleapis.com/fcm/send';
 
   static Future<void> initialize(GlobalKey<NavigatorState> navigatorKey) async {
     _navigatorKey = navigatorKey;
@@ -134,7 +125,9 @@ class PushNotificationService {
         break;
       case 'like':
       case 'comment':
-        // Navigate to profile of the person who liked/commented
+      case 'comment_reply':
+      case 'comment_like':
+        // Navigate to profile of the person who interacted
         if (fromUid.isNotEmpty) {
           navigator.push(SlideRightRoute(page: ProfileScreen(userId: fromUid)));
         }
@@ -168,89 +161,10 @@ class PushNotificationService {
     }
   }
 
-  /// Send push notification to a user directly via FCM legacy HTTP API.
-  /// Called from addNotification in firestore_service.dart.
-  static Future<void> sendPushToUser(NotificationModel notif) async {
-    if (_fcmServerKey == 'YOUR_FCM_SERVER_KEY_HERE') return;
-
-    try {
-      // Only push for these types
-      const pushTypes = ['follow', 'follow_request', 'like', 'comment', 'message'];
-      if (!pushTypes.contains(notif.type)) return;
-
-      // Get recipient's FCM tokens
-      final recipientDoc = await _db.collection('users').doc(notif.toUid).get();
-      if (!recipientDoc.exists) return;
-      final recipientData = recipientDoc.data()!;
-      final tokens = List<String>.from(recipientData['fcmTokens'] ?? []);
-      if (tokens.isEmpty) return;
-
-      // Get sender's display name
-      String senderName = 'Someone';
-      if (notif.fromUid.isNotEmpty) {
-        final senderDoc = await _db.collection('users').doc(notif.fromUid).get();
-        if (senderDoc.exists) {
-          final senderData = senderDoc.data()!;
-          senderName = senderData['displayName'] ?? senderData['username'] ?? 'Someone';
-        }
-      }
-
-      // Build title and body
-      String title = 'Pistagram';
-      String body = notif.message;
-
-      switch (notif.type) {
-        case 'follow':
-          title = 'New Follower';
-          body = '$senderName started following you.';
-          break;
-        case 'follow_request':
-          title = 'Follow Request';
-          body = '$senderName wants to follow you.';
-          break;
-        case 'like':
-          title = 'New Like';
-          body = '$senderName liked your ${notif.postId.isNotEmpty ? 'post' : 'reel'}.';
-          break;
-        case 'comment':
-          title = 'New Comment';
-          body = '$senderName commented: ${notif.message}';
-          break;
-        case 'message':
-          title = 'New Message';
-          body = '$senderName sent you a message.';
-          break;
-      }
-
-      // Send to each token
-      for (final token in tokens) {
-        try {
-          await _dio.post(
-            _fcmUrl,
-            options: Options(headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'key=$_fcmServerKey',
-            }),
-            data: {
-              'to': token,
-              'notification': {'title': title, 'body': body},
-              'data': {
-                'type': notif.type,
-                'fromUid': notif.fromUid,
-                'postId': notif.postId,
-                'reelId': notif.reelId,
-              },
-              'android': {
-                'notification': {
-                  'channel_id': 'pistagram_notifications',
-                },
-              },
-            },
-          );
-        } catch (_) {}
-      }
-    } catch (e) {
-      debugPrint('Push notification error: $e');
-    }
-  }
+  // Push notifications are sent server-side via Cloud Function trigger.
+  // See functions/src/sendPushNotification.ts — it fires on every new
+  // document in the 'notifications' collection and sends FCM messages
+  // to the recipient's registered device tokens.
+  //
+  // To deploy: firebase deploy --only functions:sendPushNotification
 }

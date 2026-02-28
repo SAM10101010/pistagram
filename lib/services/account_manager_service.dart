@@ -97,9 +97,27 @@ class AccountManagerService {
 
     // Sign in with stored credentials
     if (password == '__google__') {
-      // Re-authenticate via Google Sign-In
-      final gUser = await GoogleSignIn().signIn();
+      final gSignIn = GoogleSignIn();
+      // Always try silent sign-in first (currentUser is null on fresh instance)
+      GoogleSignInAccount? gUser = await gSignIn.signInSilently();
+
+      // If silent sign-in returned a different account, sign out and retry
+      if (gUser != null && gUser.email != account.email) {
+        await gSignIn.signOut();
+        gUser = await gSignIn.signInSilently();
+      }
+
+      // Only show picker as last resort
+      if (gUser == null || gUser.email != account.email) {
+        await gSignIn.signOut();
+        gUser = await gSignIn.signIn();
+      }
+
       if (gUser == null) throw Exception('Google sign-in cancelled');
+      if (gUser.email != account.email) {
+        await gSignIn.signOut();
+        throw Exception('Please select the correct account (${account.email})');
+      }
       final gAuth = await gUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: gAuth.accessToken,

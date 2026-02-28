@@ -178,6 +178,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           case 'comment':
             icon = Icons.chat_bubble;
             break;
+          case 'comment_reply':
+            icon = Icons.reply_rounded;
+            break;
+          case 'comment_like':
+            icon = Icons.thumb_up_rounded;
+            break;
           case 'message':
             icon = Icons.mail_rounded;
             break;
@@ -207,6 +213,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             break;
           case 'comment':
             iconAccent = Colors.green;
+            break;
+          case 'comment_reply':
+            iconAccent = Colors.teal;
+            break;
+          case 'comment_like':
+            iconAccent = Colors.pinkAccent;
             break;
           case 'message':
             iconAccent = Colors.deepPurple;

@@ -249,5 +249,29 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    // ── Story Reactions (composite key: userId_storyId) ──
+    match /storyReactions/{reactionId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAuth();
+    }
+
+    // ── Point Transfers ──
+    match /pointTransfers/{transferId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Vault Reels (composite key: uid_reelId) ──
+    match /vaultReels/{vaultId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow delete: if isAuth();
+      allow update: if false;
+    }
   }
 }

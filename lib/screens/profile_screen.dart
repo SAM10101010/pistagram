@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_model.dart';
 import '../models/reel_model.dart';
 import '../models/post_model.dart';
@@ -17,6 +18,7 @@ import '../utils/animations.dart';
 import 'edit_profile_screen.dart';
 import 'followers_screen.dart';
 import 'settings_screen.dart';
+import 'watch_analytics_screen.dart';
 import 'post_detail_screen.dart';
 import 'chat_screen.dart';
 import 'achievements_screen.dart';
@@ -46,6 +48,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   List<PostModel> _savedPosts = [];
   List<ReelModel> _likedReels = [];
   List<PostModel> _likedPosts = [];
+  List<ReelModel> _vaultReels = [];
+  bool _vaultUnlocked = false;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   bool _loading = true;
   bool _isFollowing = false;
   String _followStatus = 'none'; // none, pending, accepted
@@ -59,7 +64,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    final myUid = _authService.currentUser?.uid ?? '';
+    final uid = widget.userId ?? myUid;
+    _isOwn = uid == myUid;
+    _tabController = TabController(length: _isOwn ? 5 : 4, vsync: this);
     _loadCachedProfile();
     _loadProfile();
   }
@@ -148,9 +156,13 @@ class _ProfileScreenState extends State<ProfileScreen>
 
       // Recalculate follow counts to fix any drift
       if (_user != null) {
-        await _firestore.recalculateFollowCounts(_user!.uid);
-        final refreshed = await _firestore.getUser(_user!.uid);
-        if (refreshed != null) _user = refreshed;
+        try {
+          await _firestore.recalculateFollowCounts(_user!.uid);
+          final refreshed = await _firestore.getUser(_user!.uid);
+          if (refreshed != null) _user = refreshed;
+        } catch (e) {
+          debugPrint('Error recalculating follow counts: $e');
+        }
       }
 
       // Check follow status for other profiles
@@ -161,6 +173,12 @@ class _ProfileScreenState extends State<ProfileScreen>
           _isFollowing = follow != null && follow.status == 'accepted';
         } catch (e) {
           debugPrint('Error checking follow: $e');
+          // Fallback: try the direct status check
+          try {
+            final status = await _firestore.getFollowStatus(myUid, uid);
+            _followStatus = status;
+            _isFollowing = status == 'accepted';
+          } catch (_) {}
         }
       }
 
@@ -178,16 +196,21 @@ class _ProfileScreenState extends State<ProfileScreen>
         final likedPostsFuture = _loadLikedPosts(
           myUid,
         ).catchError((_) => <PostModel>[]);
+        final vaultReelsFuture = _loadVaultReels(
+          myUid,
+        ).catchError((_) => <ReelModel>[]);
         final results = await Future.wait([
           savedReelsFuture,
           savedPostsFuture,
           likedReelsFuture,
           likedPostsFuture,
+          vaultReelsFuture,
         ]);
         _savedReels = results[0] as List<ReelModel>;
         _savedPosts = results[1] as List<PostModel>;
         _likedReels = results[2] as List<ReelModel>;
         _likedPosts = results[3] as List<PostModel>;
+        _vaultReels = results[4] as List<ReelModel>;
       }
 
       // Load achievements for profile display
@@ -234,6 +257,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     final futures = ids.map((id) => _firestore.getPost(id));
     final results = await Future.wait(futures);
     return results.whereType<PostModel>().toList();
+  }
+
+  Future<List<ReelModel>> _loadVaultReels(String uid) async {
+    final ids = await _firestore.getVaultReelIds(uid);
+    final futures = ids.map((id) => _firestore.getReel(id));
+    final results = await Future.wait(futures);
+    return results.whereType<ReelModel>().toList();
   }
 
   Future<void> _toggleFollow() async {
@@ -514,6 +544,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Tab(icon: Icon(Icons.video_library_rounded, size: 22)),
                     Tab(icon: Icon(Icons.bookmark_rounded, size: 22)),
                     Tab(icon: Icon(Icons.favorite_rounded, size: 22)),
+                    if (_isOwn)
+                      Tab(icon: Icon(Icons.lock_outline, size: 22)),
                   ],
                 ),
                 isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF8F9FA),
@@ -572,6 +604,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                             Icons.lock_outline,
                             subColor,
                           ),
+                    if (_isOwn)
+                      _buildVaultTab(accent, isDark, subColor),
                   ],
                 ),
         ),
@@ -1052,43 +1086,51 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+            child: GestureDetector(
+              onTap: _isOwn
+                  ? () => Navigator.push(
+                        context,
+                        SlideRightRoute(page: const WatchAnalyticsScreen()),
+                      )
+                  : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFFD700).withAlpha(40),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFFD700).withAlpha(40),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    _formatCount(_user?.pointsBalance ?? 0),
-                    style: GoogleFonts.inter(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
+                child: Column(
+                  children: [
+                    Text(
+                      _formatCount(_user?.pointsBalance ?? 0),
+                      style: GoogleFonts.inter(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Points',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black54,
+                    const SizedBox(height: 2),
+                    Text(
+                      'Points',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -2008,6 +2050,492 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
       },
     );
+  }
+
+  Widget _buildVaultTab(Color accent, bool isDark, Color subColor) {
+    if (!_vaultUnlocked) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_rounded, size: 56, color: accent.withAlpha(180)),
+            const SizedBox(height: 16),
+            Text(
+              'Private Vault',
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Your hidden reels are PIN-protected',
+              style: GoogleFonts.inter(color: subColor, fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+            ScaleTap(
+              onTap: () => _handleVaultAccess(accent, isDark),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    colors: [accent, accent.withAlpha(200)],
+                  ),
+                ),
+                child: Text(
+                  'Unlock Vault',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_vaultReels.isEmpty) {
+      return _buildEmptyTab(
+        'No vault reels yet',
+        Icons.lock_outline,
+        subColor,
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(6),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
+        childAspectRatio: 0.75,
+      ),
+      itemCount: _vaultReels.length,
+      itemBuilder: (ctx, i) {
+        final reel = _vaultReels[i];
+        return GestureDetector(
+          onLongPress: () => _showVaultReelOptions(reel, accent, isDark),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: reel.thumbnailUrl.isNotEmpty
+                      ? reel.thumbnailUrl
+                      : 'https://picsum.photos/200/300?random=${reel.reelId.hashCode}',
+                  fit: BoxFit.cover,
+                  placeholder: (c, u) => Container(
+                    color: isDark
+                        ? const Color(0xFF1A1A2E)
+                        : Colors.grey[200],
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withAlpha(150),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(100),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.lock_rounded,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 6,
+                  left: 6,
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.play_arrow,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        _formatCount(reel.viewsCount),
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showVaultReelOptions(ReelModel reel, Color accent, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: (isDark ? Colors.white54 : Colors.black54).withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.lock_open_rounded, color: accent),
+              title: Text(
+                'Remove from Vault',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final uid = _authService.currentUser?.uid ?? '';
+                await _firestore.removeFromVault(uid, reel.reelId);
+                _vaultReels.removeWhere((r) => r.reelId == reel.reelId);
+                setState(() {});
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Removed from vault',
+                        style: GoogleFonts.inter(),
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleVaultAccess(Color accent, bool isDark) async {
+    final existingPin = await _secureStorage.read(key: 'vault_pin');
+    if (existingPin == null || existingPin.isEmpty) {
+      // First time -- set up a new PIN
+      await _showPinSetupDialog(accent, isDark);
+    } else {
+      // Ask for PIN
+      await _showPinEntryDialog(accent, isDark, existingPin);
+    }
+  }
+
+  Future<void> _showPinSetupDialog(Color accent, bool isDark) async {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final pinController = TextEditingController();
+    final confirmController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Set Vault PIN',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Create a 4-digit PIN to protect your vault',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white54 : Colors.black54,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: textColor,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 12,
+              ),
+              decoration: InputDecoration(
+                hintText: '----',
+                hintStyle: GoogleFonts.inter(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                  fontSize: 24,
+                  letterSpacing: 12,
+                ),
+                counterText: '',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: accent, width: 2),
+                ),
+              ),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: textColor,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 12,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Confirm',
+                hintStyle: GoogleFonts.inter(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                  fontSize: 14,
+                ),
+                counterText: '',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: accent, width: 2),
+                ),
+              ),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final pin = pinController.text.trim();
+              final confirm = confirmController.text.trim();
+              if (pin.length != 4) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'PIN must be 4 digits',
+                      style: GoogleFonts.inter(),
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+              if (pin != confirm) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'PINs do not match',
+                      style: GoogleFonts.inter(),
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx, true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Set PIN',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      await _secureStorage.write(
+        key: 'vault_pin',
+        value: pinController.text.trim(),
+      );
+      setState(() => _vaultUnlocked = true);
+    }
+    pinController.dispose();
+    confirmController.dispose();
+  }
+
+  Future<void> _showPinEntryDialog(
+    Color accent,
+    bool isDark,
+    String correctPin,
+  ) async {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final pinController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Enter Vault PIN',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Enter your 4-digit PIN to unlock',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white54 : Colors.black54,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              textAlign: TextAlign.center,
+              autofocus: true,
+              style: GoogleFonts.inter(
+                color: textColor,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 12,
+              ),
+              decoration: InputDecoration(
+                hintText: '----',
+                hintStyle: GoogleFonts.inter(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                  fontSize: 24,
+                  letterSpacing: 12,
+                ),
+                counterText: '',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: accent, width: 2),
+                ),
+              ),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (pinController.text.trim() == correctPin) {
+                Navigator.pop(ctx, true);
+              } else {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Incorrect PIN',
+                      style: GoogleFonts.inter(),
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Unlock',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      setState(() => _vaultUnlocked = true);
+    }
+    pinController.dispose();
   }
 
   Widget _buildEmptyTab(String message, IconData icon, Color color) {

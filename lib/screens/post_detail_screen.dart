@@ -669,11 +669,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               ),
                             ),
                           );
-                          if (filter != null)
+                          if (filter != null) {
                             img = ColorFiltered(
                               colorFilter: filter,
                               child: img,
                             );
+                          }
                           return Stack(
                             fit: StackFit.expand,
                             children: [
@@ -714,11 +715,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                     ),
                                   ),
                                 );
-                                if (filter != null)
+                                if (filter != null) {
                                   img = ColorFiltered(
                                     colorFilter: filter,
                                     child: img,
                                   );
+                                }
                                 return Stack(
                                   fit: StackFit.expand,
                                   children: [

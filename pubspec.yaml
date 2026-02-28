@@ -34,6 +34,10 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   firebase_messaging: ^15.2.4
   flutter_local_notifications: ^18.0.1
+  just_audio: ^0.9.39
+  on_audio_query: ^2.9.0
+  permission_handler: ^11.3.1
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
@@ -45,10 +49,10 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo.png"
+  image_path: "assets/logo_app.png"
   min_sdk_android: 21
   adaptive_icon_background: "#ffffff"
-  adaptive_icon_foreground: "assets/logo.png"
+  adaptive_icon_foreground: "assets/logo_app.png"
 
 flutter:
   uses-material-design: true
