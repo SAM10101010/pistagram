@@ -29,14 +29,27 @@ class _RewardStoreScreenState extends State<RewardStoreScreen> {
   }
 
   Future<void> _load() async {
-    final rewards = await _firestoreService.getActiveRewards();
-    final points = await _pointsService.getPoints();
-    if (mounted) {
-      setState(() {
-        _rewards = rewards;
-        _userPoints = points;
-        _loading = false;
-      });
+    try {
+      final rewards = await _firestoreService.getActiveRewards();
+      final uid = _authService.currentUser?.uid ?? '';
+      final points = await _pointsService.getPoints(uid: uid);
+      if (mounted) {
+        setState(() {
+          _rewards = rewards;
+          _userPoints = points;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load rewards: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -91,7 +104,9 @@ class _RewardStoreScreenState extends State<RewardStoreScreen> {
         ],
       ),
     );
-    if (confirm != true) return;
+    if (confirm != true) {
+      return;
+    }
     final success = await _pointsService.redeemPoints(
       reward.pointsCost,
       uid,

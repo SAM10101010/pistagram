@@ -14,9 +14,30 @@ import 'achievement_service.dart';
 import 'campaign_service.dart';
 import 'series_service.dart';
 
+/// Converts raw exception messages to user-friendly text.
+String _friendlyError(Object e) {
+  final msg = e.toString();
+  if (msg.contains('PERMISSION_DENIED') || msg.contains('permission-denied')) {
+    return 'You don\'t have permission to perform this action. Please try again later.';
+  }
+  if (msg.contains('UNAVAILABLE') || msg.contains('unavailable')) {
+    return 'Service is temporarily unavailable. Please check your internet connection.';
+  }
+  if (msg.contains('NOT_FOUND') || msg.contains('not-found')) {
+    return 'The requested data was not found.';
+  }
+  if (msg.contains('DEADLINE_EXCEEDED') || msg.contains('deadline-exceeded')) {
+    return 'Request timed out. Please try again.';
+  }
+  // Strip 'Exception: ' prefix
+  return msg.replaceFirst('Exception: ', '');
+}
+
 class PointsService {
   static const String _pointsKey = 'total_points';
-  static const String _completedReelsKey = 'completed_reels';
+  static const String _completedReelsKeyPrefix = 'completed_reels_';
+  @Deprecated('Use _completedReelsKeyPrefix + uid instead')
+  static const String _completedReelsKeyLegacy = 'completed_reels';
   static const int dailyEarningCap = 100;
   static final _random = Random();
   final _uuid = const Uuid();
@@ -40,7 +61,18 @@ class PointsService {
     }
   }
 
-  Future<int> getPoints() async {
+  Future<int> getPoints({String? uid}) async {
+    // Always read from Firestore as the single source of truth
+    if (uid != null) {
+      final user = await _firestoreService.getUser(uid);
+      if (user != null) {
+        // Sync SharedPreferences cache with Firestore value
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(_pointsKey, user.pointsBalance);
+        return user.pointsBalance;
+      }
+    }
+    // Fallback to local cache only if uid not available
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_pointsKey) ?? 0;
   }
@@ -92,9 +124,13 @@ class PointsService {
       );
       await _firestoreService.addTransaction(txn);
 
-      // Points go to lockedPoints (unlocked after 24h by Cloud Function)
+      // Points go to both lockedPoints AND pointsBalance immediately
+      // Also track totalPointsEarned and totalWatchedReels for analytics
       await _firestoreService.updateUser(uid, {
         'lockedPoints': FieldValue.increment(amount),
+        'pointsBalance': FieldValue.increment(amount),
+        'totalPointsEarned': FieldValue.increment(amount),
+        'totalWatchedReels': FieldValue.increment(1),
       });
 
       // Track engagement for reaction bonuses
@@ -171,13 +207,10 @@ class PointsService {
       throw Exception('Account is not active — cannot redeem points');
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final current = prefs.getInt(_pointsKey) ?? 0;
-    if (current < amount) return false;
+    // Check balance from Firestore (single source of truth)
+    if (user.pointsBalance < amount) return false;
 
-    final newTotal = current - amount;
-    await prefs.setInt(_pointsKey, newTotal);
-
+    // Update Firestore first
     final txn = TransactionModel(
       id: _uuid.v4(),
       uid: uid,
@@ -188,26 +221,73 @@ class PointsService {
     await _firestoreService.addTransaction(txn);
     await _firestoreService.updatePointsBalance(uid, -amount);
 
+    // Sync local cache
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_pointsKey, user.pointsBalance - amount);
+
     return true;
   }
 
-  Future<Set<String>> getCompletedReels() async {
+  /// Get completed reels for a specific user.
+  /// Falls back to the legacy (non-user-specific) key and migrates data.
+  Future<Set<String>> getCompletedReels({String? uid}) async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_completedReelsKey) ?? [];
+    if (uid != null && uid.isNotEmpty) {
+      final userKey = '$_completedReelsKeyPrefix$uid';
+      var list = prefs.getStringList(userKey);
+      if (list == null) {
+        // Migrate legacy data (one-time)
+        // ignore: deprecated_member_use_from_same_package
+        final legacy = prefs.getStringList(_completedReelsKeyLegacy) ?? [];
+        if (legacy.isNotEmpty) {
+          await prefs.setStringList(userKey, legacy);
+        }
+        list = legacy;
+      }
+      return list.toSet();
+    }
+    // Fallback for no uid
+    // ignore: deprecated_member_use_from_same_package
+    final list = prefs.getStringList(_completedReelsKeyLegacy) ?? [];
     return list.toSet();
   }
 
-  Future<bool> isReelCompleted(String reelId) async {
-    final completed = await getCompletedReels();
+  Future<bool> isReelCompleted(String reelId, {String? uid}) async {
+    // Check Firestore first for authoritative answer
+    if (uid != null && uid.isNotEmpty) {
+      final doc = await FirebaseFirestore.instance
+          .collection('reelWatchRewards')
+          .doc('${uid}_$reelId')
+          .get();
+      if (doc.exists) return true;
+    }
+    final completed = await getCompletedReels(uid: uid);
     return completed.contains(reelId);
   }
 
-  Future<void> markReelCompleted(String reelId) async {
+  /// Mark a reel as completed for a specific user (local + Firestore).
+  Future<void> markReelCompleted(String reelId, {String? uid}) async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_completedReelsKey) ?? [];
+    final key = (uid != null && uid.isNotEmpty)
+        ? '$_completedReelsKeyPrefix$uid'
+        // ignore: deprecated_member_use_from_same_package
+        : _completedReelsKeyLegacy;
+    final list = prefs.getStringList(key) ?? [];
     final set = list.toSet();
     set.add(reelId);
-    await prefs.setStringList(_completedReelsKey, set.toList());
+    await prefs.setStringList(key, set.toList());
+
+    // Also record in Firestore for server-side dedup
+    if (uid != null && uid.isNotEmpty) {
+      await FirebaseFirestore.instance
+          .collection('reelWatchRewards')
+          .doc('${uid}_$reelId')
+          .set({
+        'uid': uid,
+        'reelId': reelId,
+        'rewardedAt': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   Future<bool> canEarnPoints(String uid) async {
@@ -222,6 +302,7 @@ class PointsService {
   }
 
   /// Transfer points from sender to receiver with a 10% fee (ceiling).
+  /// Uses Firestore batch for atomic deduct+credit.
   /// Returns the net amount received, or throws on failure.
   Future<int> transferPoints(String senderUid, String receiverUid, int amount) async {
     if (senderUid == receiverUid) {
@@ -240,50 +321,96 @@ class PointsService {
     // Verify receiver exists and is active
     final receiver = await _firestoreService.getUser(receiverUid);
     if (receiver == null || receiver.accountStatus != 'active') {
-      throw Exception('Recipient account is not active');
+      throw Exception('Recipient account is not active or does not exist');
     }
 
-    // Check sender balance
-    final prefs = await SharedPreferences.getInstance();
-    final currentBalance = prefs.getInt(_pointsKey) ?? 0;
-    if (currentBalance < amount) {
-      throw Exception('Insufficient points balance');
+    // Check sender balance from Firestore (single source of truth)
+    if (sender.pointsBalance < amount) {
+      throw Exception('Insufficient points balance. You have ${sender.pointsBalance} pts.');
     }
 
     // Calculate fee (10%, rounded up)
     final fee = (amount * 0.10).ceil();
     final netAmount = amount - fee;
 
-    // Deduct from sender
-    final deducted = await redeemPoints(amount, senderUid, 'Transfer to @${receiver.username}');
-    if (!deducted) {
-      throw Exception('Failed to deduct points');
+    // Use Firestore WriteBatch for atomic transfer
+    try {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+
+      // Deduct from sender
+      batch.update(db.collection('users').doc(senderUid), {
+        'pointsBalance': FieldValue.increment(-amount),
+      });
+
+      // Credit to receiver
+      batch.update(db.collection('users').doc(receiverUid), {
+        'pointsBalance': FieldValue.increment(netAmount),
+      });
+
+      // Log sender transaction (deduction)
+      final senderTxn = TransactionModel(
+        id: _uuid.v4(),
+        uid: senderUid,
+        type: 'redeemed',
+        amount: amount,
+        reason: 'Transfer to @${receiver.username}',
+      );
+      batch.set(
+        db.collection('transactions').doc(senderTxn.id),
+        senderTxn.toMap(),
+      );
+
+      // Log receiver transaction (credit)
+      final receiverTxn = TransactionModel(
+        id: _uuid.v4(),
+        uid: receiverUid,
+        type: 'bonus',
+        amount: netAmount,
+        reason: 'Transfer from @${sender.username}',
+      );
+      batch.set(
+        db.collection('transactions').doc(receiverTxn.id),
+        receiverTxn.toMap(),
+      );
+
+      // Log the transfer record
+      final transfer = PointTransferModel(
+        id: _uuid.v4(),
+        senderId: senderUid,
+        receiverId: receiverUid,
+        grossAmount: amount,
+        fee: fee,
+        netAmount: netAmount,
+      );
+      batch.set(
+        db.collection('pointTransfers').doc(transfer.id),
+        transfer.toMap(),
+      );
+
+      // Create notification for the receiver
+      final notif = NotificationModel(
+        id: _uuid.v4(),
+        toUid: receiverUid,
+        fromUid: senderUid,
+        type: 'points',
+        message: 'sent you $netAmount points',
+      );
+      batch.set(
+        db.collection('notifications').doc(notif.id),
+        notif.toMap(),
+      );
+
+      // Commit all operations atomically
+      await batch.commit();
+
+      // Sync local cache
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_pointsKey, sender.pointsBalance - amount);
+
+      return netAmount;
+    } catch (e) {
+      throw Exception(_friendlyError(e));
     }
-
-    // Credit to receiver
-    await addBonusPoints(netAmount, receiverUid, 'Transfer from @${sender.username}');
-
-    // Log the transfer
-    final transfer = PointTransferModel(
-      id: _uuid.v4(),
-      senderId: senderUid,
-      receiverId: receiverUid,
-      grossAmount: amount,
-      fee: fee,
-      netAmount: netAmount,
-    );
-    await _firestoreService.logPointTransfer(transfer);
-
-    // Create notification for the receiver
-    final notif = NotificationModel(
-      id: _uuid.v4(),
-      toUid: receiverUid,
-      fromUid: senderUid,
-      type: 'points',
-      message: 'sent you $netAmount points',
-    );
-    await _firestoreService.addNotification(notif);
-
-    return netAmount;
   }
 }

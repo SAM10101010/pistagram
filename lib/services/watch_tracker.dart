@@ -3,11 +3,8 @@ import 'package:video_player/video_player.dart';
 class WatchTracker {
   final VideoPlayerController controller;
   final String reelId;
-  final void Function(String reelId) onCompleted;
+  final Function(String reelId) onCompleted;
   bool _hasTriggered = false;
-
-  /// Minimum reel duration to earn points (60 seconds)
-  static const Duration minDuration = Duration(seconds: 60);
 
   WatchTracker({
     required this.controller,
@@ -23,10 +20,7 @@ class WatchTracker {
     final duration = controller.value.duration;
     final position = controller.value.position;
 
-    // Skip reels shorter than 60 seconds
-    if (duration < minDuration) return;
-
-    // Check for 95% completion
+    // Award points when the reel reaches 95% (effectively finished)
     if (duration.inMilliseconds > 0) {
       final progress = position.inMilliseconds / duration.inMilliseconds;
       if (progress >= 0.95) {

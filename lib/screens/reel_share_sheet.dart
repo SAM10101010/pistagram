@@ -28,6 +28,22 @@ class _ReelShareSheetState extends State<ReelShareSheet> {
   final _auth = AuthService();
   final _firestore = FirestoreService();
   final _messaging = MessagingService();
+  String _reelThumbnail = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchReelThumbnail();
+  }
+
+  Future<void> _fetchReelThumbnail() async {
+    try {
+      final reel = await _firestore.getReel(widget.reelId);
+      if (reel != null && reel.thumbnailUrl.isNotEmpty && mounted) {
+        setState(() => _reelThumbnail = reel.thumbnailUrl);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +117,9 @@ class _ReelShareSheetState extends State<ReelShareSheet> {
                                     chatId: chat.chatId,
                                     senderUid: currentUid,
                                     text: 'Check out this reel!',
-                                    mediaUrl: '',
+                                    sharedContentType: 'reel',
+                                    sharedContentId: widget.reelId,
+                                    sharedThumbnail: _reelThumbnail,
                                   );
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(

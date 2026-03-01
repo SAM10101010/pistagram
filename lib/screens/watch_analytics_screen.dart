@@ -22,6 +22,7 @@ class _WatchAnalyticsScreenState extends State<WatchAnalyticsScreen> {
   UserModel? _user;
   Map<String, int> _dailyCounts = {};
   Map<int, int> _hourlyCounts = {};
+  String? _error;
   bool _loading = true;
 
   @override
@@ -34,19 +35,30 @@ class _WatchAnalyticsScreenState extends State<WatchAnalyticsScreen> {
     final uid = _auth.currentUser?.uid ?? '';
     if (uid.isEmpty) return;
 
-    final results = await Future.wait([
-      _firestore.getUser(uid),
-      _analytics.getDailyWatchCounts(uid),
-      _analytics.getHourlyDistribution(uid),
-    ]);
+    try {
+      final results = await Future.wait([
+        _firestore.getUser(uid),
+        _analytics.getDailyWatchCounts(uid),
+        _analytics.getHourlyDistribution(uid),
+      ]);
 
-    if (mounted) {
-      setState(() {
-        _user = results[0] as UserModel?;
-        _dailyCounts = results[1] as Map<String, int>;
-        _hourlyCounts = results[2] as Map<int, int>;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _user = results[0] as UserModel?;
+          _dailyCounts = results[1] as Map<String, int>;
+          _hourlyCounts = results[2] as Map<int, int>;
+          _loading = false;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Analytics load error: $e');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Unable to load analytics data. Please try again later.';
+        });
+      }
     }
   }
 
@@ -74,7 +86,37 @@ class _WatchAnalyticsScreenState extends State<WatchAnalyticsScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.error_outline_rounded, size: 48, color: subColor),
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style: GoogleFonts.inter(color: subColor, fontSize: 14),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _loading = true;
+                              _error = null;
+                            });
+                            _loadData();
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
               onRefresh: () async {
                 setState(() => _loading = true);
                 await _loadData();

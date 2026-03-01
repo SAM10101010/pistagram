@@ -48,7 +48,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
   }
 
   void _openDraft(DraftModel draft) {
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => UploadScreen(draft: draft)),
     );

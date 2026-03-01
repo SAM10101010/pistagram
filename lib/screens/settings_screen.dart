@@ -11,6 +11,7 @@ import 'auth_screen.dart';
 import 'blocked_users_screen.dart';
 import 'security_settings_screen.dart';
 import 'drafts_screen.dart';
+import 'support_ticket_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -785,6 +786,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => Navigator.push(
               context,
               SlideRightRoute(page: const BlockedUsersScreen()),
+            ),
+            isDark: isDark,
+            textColor: textColor,
+            subColor: subColor,
+          ),
+          _buildTile(
+            icon: Icons.support_agent_rounded,
+            title: 'Help & Support',
+            subtitle: 'Submit a ticket or report an issue',
+            onTap: () => Navigator.push(
+              context,
+              SlideRightRoute(page: const SupportTicketScreen()),
             ),
             isDark: isDark,
             textColor: textColor,

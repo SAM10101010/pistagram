@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/reel_model.dart';
 import '../models/user_model.dart';
 import '../services/points_service.dart';
@@ -42,7 +43,6 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
   int _currentIndex = 0;
   bool _showPointsPopup = false;
   int _earnedPoints = 0;
-  int _totalPoints = 0;
   int _selectedTab = 1;
 
   List<ReelModel> _reels = [];
@@ -55,6 +55,8 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
   final Map<String, String> _seriesCache = {}; // reelId -> series title
   final Map<String, int> _userRatings = {}; // reelId -> user's rating (1-5)
   bool _loading = true;
+  bool _autoScrollEnabled = false;
+  bool _videoMuted = false;
 
   List<VideoPlayerController?> _controllers = [];
   List<WatchTracker?> _trackers = [];
@@ -67,32 +69,43 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.activeTabNotifier?.addListener(_onTabVisibilityChanged);
+    _loadAutoScrollPref();
     _loadReels();
   }
 
+  Future<void> _loadAutoScrollPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    _autoScrollEnabled = prefs.getBool('reel_auto_scroll') ?? false;
+  }
+
   void _onTabVisibilityChanged() {
-    if (_controllers.isEmpty || _currentIndex >= _controllers.length) return;
     final isVisible = widget.activeTabNotifier?.value == 1;
-    if (isVisible) {
-      _controllers[_currentIndex]?.play();
-      // Resume music if current reel has it
-      if (_reels.isNotEmpty && _reels[_currentIndex].musicUrl.isNotEmpty) {
-        AudioPlaybackService.instance.play(_reels[_currentIndex].musicUrl);
+    if (!isVisible) {
+      // Always stop audio when leaving reels tab
+      AudioPlaybackService.instance.stop();
+      if (_controllers.isNotEmpty && _currentIndex < _controllers.length) {
+        _controllers[_currentIndex]?.pause();
       }
-    } else {
-      _controllers[_currentIndex]?.pause();
-      AudioPlaybackService.instance.pause();
+      return;
+    }
+    if (_controllers.isEmpty || _currentIndex >= _controllers.length) return;
+    _controllers[_currentIndex]?.play();
+    // Resume music if current reel has it
+    if (_reels.isNotEmpty && _reels[_currentIndex].musicUrl.isNotEmpty) {
+      AudioPlaybackService.instance.play(_reels[_currentIndex].musicUrl);
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_controllers.isEmpty || _currentIndex >= _controllers.length) return;
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _controllers[_currentIndex]?.pause();
-      AudioPlaybackService.instance.pause();
+      AudioPlaybackService.instance.stop();
+      if (_controllers.isNotEmpty && _currentIndex < _controllers.length) {
+        _controllers[_currentIndex]?.pause();
+      }
     } else if (state == AppLifecycleState.resumed) {
       // Only resume if the reels tab is active
+      if (_controllers.isEmpty || _currentIndex >= _controllers.length) return;
       if (widget.activeTabNotifier == null || widget.activeTabNotifier!.value == 1) {
         _controllers[_currentIndex]?.play();
         if (_reels.isNotEmpty && _reels[_currentIndex].musicUrl.isNotEmpty) {
@@ -114,29 +127,37 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       if (cachedSaved != null) _savedIds.addAll(cachedSaved.cast<String>());
 
       _reels = await _firestore.getPublicReels(limit: 20);
-      _totalPoints = await _pointsService.getPoints();
-      _completedReels = await _pointsService.getCompletedReels();
+      await _pointsService.getPoints(uid: uid);
+      _completedReels = await _pointsService.getCompletedReels(uid: uid);
 
       // Get following IDs for follow button state
       final followingUids = await _firestore.getFollowingUids(uid);
       _followingIds = followingUids.toSet();
 
-      // Pre-cache creators, like/save states
+      // Pre-cache creators, collaborators, like/save states
       for (final reel in _reels) {
         if (!_creatorCache.containsKey(reel.creatorUid)) {
           final u = await _firestore.getUser(reel.creatorUid);
           if (u != null) _creatorCache[reel.creatorUid] = u;
+        }
+        // Pre-cache collaborator usernames
+        for (final collabUid in reel.collaborators) {
+          if (!_creatorCache.containsKey(collabUid)) {
+            final u = await _firestore.getUser(collabUid);
+            if (u != null) _creatorCache[collabUid] = u;
+          }
         }
         if (await _firestore.hasLikedReel(uid, reel.reelId)) _likedIds.add(reel.reelId);
         if (await _firestore.hasSavedReel(uid, reel.reelId)) _savedIds.add(reel.reelId);
         if (await _firestore.isInVault(uid, reel.reelId)) _vaultIds.add(reel.reelId);
       }
 
-      // Init video controllers
+      // Init video controllers — preload up to 4 reels ahead
       _controllers = List.filled(_reels.length, null);
       _trackers = List.filled(_reels.length, null);
-      if (_reels.isNotEmpty) _initController(0);
-      if (_reels.length > 1) _initController(1);
+      for (int i = 0; i < _reels.length && i < 4; i++) {
+        _initController(i);
+      }
 
       // Persist liked/saved to cache
       cache.setData('likedReelIds_$uid', _likedIds.toList());
@@ -158,7 +179,23 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
 
     try {
       await controller.initialize();
-      controller.setLooping(true);
+      controller.setLooping(!_autoScrollEnabled);
+      controller.setVolume(_videoMuted ? 0 : 1);
+
+      // Auto-scroll listener: when video ends, go to next reel
+      if (_autoScrollEnabled) {
+        controller.addListener(() {
+          if (!mounted) return;
+          final pos = controller.value.position;
+          final dur = controller.value.duration;
+          if (dur.inMilliseconds > 0 &&
+              pos.inMilliseconds >= dur.inMilliseconds - 200 &&
+              !controller.value.isPlaying &&
+              index == _currentIndex) {
+            _scrollToNext();
+          }
+        });
+      }
 
       final reelId = _reels[index].reelId;
       _trackers[index] = WatchTracker(
@@ -186,18 +223,24 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
   Future<void> _onReelCompleted(String reelId) async {
     if (_completedReels.contains(reelId)) return;
 
+    final uid = _authService.currentUser?.uid;
+
+    // Double-check with Firestore to prevent earning twice
+    if (uid != null) {
+      final alreadyRewarded = await _pointsService.isReelCompleted(reelId, uid: uid);
+      if (alreadyRewarded) {
+        _completedReels.add(reelId);
+        return;
+      }
+    }
+
     final points = PointsService.generateRandomPoints();
-    await _pointsService.markReelCompleted(reelId);
-    final result = await _pointsService.addPoints(points);
-    _totalPoints = (result['newTotal'] as int?) ?? 0;
+    await _pointsService.markReelCompleted(reelId, uid: uid);
+    await _pointsService.addPoints(points, uid: uid, reelId: reelId);
     _completedReels.add(reelId);
 
-    // Update user's points balance in Firestore
-    final uid = _authService.currentUser?.uid;
+    // Gamification integrations (fire-and-forget)
     if (uid != null) {
-      await _firestore.updatePointsBalance(uid, _totalPoints);
-
-      // Gamification integrations (fire-and-forget)
       _streakService.onReelCompleted(uid).catchError((_) => null);
       _reactionRewardService.onReelWatched(uid, reelId, points).catchError((_) {});
       _seriesService.onReelWatched(uid, reelId).catchError((_) => null);
@@ -229,10 +272,13 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       AudioPlaybackService.instance.stop();
     }
 
-    if (index + 1 < _reels.length) _initController(index + 1);
+    // Preload up to 3 reels ahead for smooth scrolling
+    for (int i = 1; i <= 3; i++) {
+      if (index + i < _reels.length) _initController(index + i);
+    }
 
     for (int i = 0; i < _controllers.length; i++) {
-      if ((i - index).abs() > 2 && _controllers[i] != null) {
+      if ((i - index).abs() > 4 && _controllers[i] != null) {
         _trackers[i]?.dispose();
         _trackers[i] = null;
         _controllers[i]?.dispose();
@@ -240,6 +286,37 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       }
     }
     setState(() {});
+  }
+
+  void _scrollToNext() {
+    if (_currentIndex + 1 < _reels.length) {
+      _pageController.animateToPage(
+        _currentIndex + 1,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  Future<void> _toggleAutoScroll() async {
+    _autoScrollEnabled = !_autoScrollEnabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('reel_auto_scroll', _autoScrollEnabled);
+    // Update looping on current controller
+    if (_currentIndex < _controllers.length && _controllers[_currentIndex] != null) {
+      _controllers[_currentIndex]!.setLooping(!_autoScrollEnabled);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _toggleVideoMute() {
+    _videoMuted = !_videoMuted;
+    for (final c in _controllers) {
+      c?.setVolume(_videoMuted ? 0 : 1);
+    }
+    // Also toggle music mute
+    AudioPlaybackService.instance.toggleMute();
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleLike(int index) async {
@@ -256,7 +333,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       _reactionRewardService.onReelLiked(uid, reelId).catchError((_) => 0);
     }
     CacheService.instance.setData('likedReelIds_$uid', _likedIds.toList());
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleSave(int index) async {
@@ -271,7 +348,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       _savedIds.add(reelId);
     }
     CacheService.instance.setData('savedReelIds_$uid', _savedIds.toList());
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleVault(int index) async {
@@ -315,7 +392,21 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
         );
       }
     }
-    setState(() {});
+    if (mounted) setState(() {});
+  }
+
+  /// Build display label showing creator + collaborators (e.g. "alice & bob")
+  String _buildCreatorLabel(ReelModel reel) {
+    final creatorName = _creatorCache[reel.creatorUid]?.username ?? 'unknown';
+    if (reel.collaborators.isEmpty) return creatorName;
+    final collabNames = reel.collaborators
+        .where((uid) => uid != reel.creatorUid)
+        .map((uid) => _creatorCache[uid]?.username ?? 'unknown')
+        .where((name) => name != 'unknown')
+        .toList();
+    if (collabNames.isEmpty) return creatorName;
+    if (collabNames.length == 1) return '$creatorName & ${collabNames[0]}';
+    return '$creatorName & ${collabNames.length} others';
   }
 
   Future<void> _toggleFollow(String targetUid) async {
@@ -327,7 +418,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       await _followService.followUser(uid, targetUid);
       _followingIds.add(targetUid);
     }
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
@@ -405,61 +496,88 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white54.withAlpha(80),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.share_outlined, color: Colors.white),
-              title: Text(
-                'Share',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white54.withAlpha(80),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              onTap: () {
-                Navigator.pop(ctx);
-                // Share action placeholder
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                isInVault ? Icons.lock_open_rounded : Icons.lock_rounded,
-                color: isInVault ? Colors.orangeAccent : Colors.white,
-              ),
-              title: Text(
-                isInVault ? 'Remove from Vault' : 'Add to Vault',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+              ListTile(
+                leading: const Icon(Icons.share_outlined, color: Colors.white),
+                title: Text(
+                  'Share',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                },
               ),
-              subtitle: Text(
-                isInVault
-                    ? 'This reel is in your private vault'
-                    : 'Hide this reel in your private vault',
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 12,
+              ListTile(
+                leading: Icon(
+                  isInVault ? Icons.lock_open_rounded : Icons.lock_rounded,
+                  color: isInVault ? Colors.orangeAccent : Colors.white,
                 ),
+                title: Text(
+                  isInVault ? 'Remove from Vault' : 'Add to Vault',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: Text(
+                  isInVault
+                      ? 'This reel is in your private vault'
+                      : 'Hide this reel in your private vault',
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 12,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _toggleVault(index);
+                },
               ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _toggleVault(index);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+              SwitchListTile(
+                secondary: Icon(
+                  Icons.playlist_play_rounded,
+                  color: _autoScrollEnabled ? Colors.greenAccent : Colors.white,
+                ),
+                title: Text(
+                  'Auto-scroll',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: Text(
+                  'Automatically play next reel when current ends',
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 12,
+                  ),
+                ),
+                value: _autoScrollEnabled,
+                activeColor: Colors.greenAccent,
+                onChanged: (v) {
+                  _toggleAutoScroll();
+                  setSheetState(() {});
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -670,18 +788,21 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
           ),
         ),
         // Gradient overlay
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.transparent, Colors.transparent, Colors.black.withAlpha(180)],
-              stops: const [0, 0.5, 1.0],
+        IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Colors.transparent, Colors.black.withAlpha(180)],
+                stops: const [0, 0.5, 1.0],
+              ),
             ),
           ),
         ),
         // Text and sticker overlays
-        LayoutBuilder(
+        IgnorePointer(
+          child: LayoutBuilder(
           builder: (context, constraints) {
             final cw = constraints.maxWidth;
             final ch = constraints.maxHeight;
@@ -712,9 +833,10 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
             );
           },
         ),
+        ),
         // Bottom info
         Positioned(
-          bottom: 80, left: 14, right: 80,
+          bottom: 60, left: 14, right: 80,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -796,9 +918,14 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
               if (reel.isLimited || reel.expiryTime != null || _seriesCache.containsKey(reel.reelId) || reel.averageRating > 0)
                 const SizedBox(height: 8),
               GestureDetector(
-                onTap: () => Navigator.push(context, SlideRightRoute(
-                  page: ProfileScreen(userId: reel.creatorUid),
-                )),
+                onTap: () {
+                  // Stop video and audio before navigating
+                  _controllers[_currentIndex]?.pause();
+                  AudioPlaybackService.instance.stop();
+                  Navigator.push(context, SlideRightRoute(
+                    page: ProfileScreen(userId: reel.creatorUid),
+                  ));
+                },
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -810,8 +937,10 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
                     ),
                     const SizedBox(width: 10),
                     Flexible(
-                      child: Text(creator?.username ?? 'unknown', style: GoogleFonts.inter(
-                        color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                      child: Text(
+                        _buildCreatorLabel(reel),
+                        style: GoogleFonts.inter(
+                          color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     if (!isOwn && !isFollowing) ...[
@@ -853,19 +982,6 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
                     ),
                     if (reel.musicUrl.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () {
-                          AudioPlaybackService.instance.toggleMute();
-                          setState(() {});
-                        },
-                        child: Icon(
-                          AudioPlaybackService.instance.isMuted
-                              ? Icons.volume_off_rounded
-                              : Icons.volume_up_rounded,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
-                      ),
                     ],
                   ],
                 ),
@@ -875,7 +991,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
         ),
         // Right action column
         Positioned(
-          right: 10, bottom: 100,
+          right: 10, bottom: 120,
           child: Column(
             children: [
               _buildActionBtn(
@@ -905,6 +1021,13 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
               ),
               const SizedBox(height: 18),
               _buildActionBtn(
+                icon: _vaultIds.contains(reel.reelId) ? Icons.lock_rounded : Icons.lock_outline,
+                label: 'Vault',
+                color: _vaultIds.contains(reel.reelId) ? Colors.orangeAccent : Colors.white,
+                onTap: () => _toggleVault(index),
+              ),
+              const SizedBox(height: 18),
+              _buildActionBtn(
                 icon: Icons.share_outlined,
                 label: 'Share',
                 color: Colors.white,
@@ -922,9 +1045,32 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
         ),
         // Play/pause indicator
         if (controller != null && !controller.value.isPlaying)
-          const Center(
-            child: Icon(Icons.play_arrow_rounded, color: Colors.white54, size: 70),
+          const IgnorePointer(
+            child: Center(
+              child: Icon(Icons.play_arrow_rounded, color: Colors.white54, size: 70),
+            ),
           ),
+        // Mute button at bottom right
+        Positioned(
+          right: 14,
+          bottom: 14,
+          child: GestureDetector(
+            onTap: _toggleVideoMute,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withAlpha(120),
+              ),
+              child: Icon(
+                _videoMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

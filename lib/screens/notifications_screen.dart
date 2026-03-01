@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/follow_service.dart';
+import '../services/collab_service.dart';
 import '../utils/animations.dart';
 import 'profile_screen.dart';
 import 'follow_requests_screen.dart';
@@ -22,13 +23,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final _auth = AuthService();
   final _firestore = FirestoreService();
   final _followService = FollowService();
+  final _collabService = CollabService();
   final Map<String, UserModel> _userCache = {};
   final Set<String> _handledRequestIds = {};
+  final Set<String> _handledCollabIds = {};
 
   Future<UserModel?> _getCachedUser(String uid) async {
-    if (_userCache.containsKey(uid)) return _userCache[uid];
+    if (_userCache.containsKey(uid)) {
+      return _userCache[uid];
+    }
     final u = await _firestore.getUser(uid);
-    if (u != null) _userCache[uid] = u;
+    if (u != null) {
+      _userCache[uid] = u;
+    }
     return u;
   }
 
@@ -300,6 +307,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           case 'tag':
             icon = Icons.person_pin;
             break;
+          case 'collab_invite':
+            icon = Icons.group_add_rounded;
+            break;
+          case 'collab_accepted':
+            icon = Icons.handshake_rounded;
+            break;
+          case 'collab_rejected':
+            icon = Icons.person_remove_rounded;
+            break;
           default:
             icon = Icons.notifications;
         }
@@ -335,6 +351,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             break;
           case 'tag':
             iconAccent = Colors.orange;
+            break;
+          case 'collab_invite':
+            iconAccent = Colors.deepPurpleAccent;
+            break;
+          case 'collab_accepted':
+            iconAccent = Colors.green;
+            break;
+          case 'collab_rejected':
+            iconAccent = Colors.redAccent;
             break;
           default:
             iconAccent = accent;
@@ -467,6 +492,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           isDark,
                         ),
                       ),
+                    if (notif.type == 'collab_invite' && !_handledCollabIds.contains(notif.id))
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _buildCollabInviteButtons(
+                          notif,
+                          accent,
+                          isDark,
+                        ),
+                      ),
                     if (!notif.read)
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
@@ -592,6 +626,77 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
             child: Text(
               'Reject',
+              style: GoogleFonts.inter(fontSize: 11, color: subColor),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCollabInviteButtons(
+    NotificationModel notif,
+    Color accent,
+    bool isDark,
+  ) {
+    final subColor = isDark ? Colors.white54 : Colors.black54;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 30,
+          child: ElevatedButton(
+            onPressed: () async {
+              await _collabService.acceptInvite(notif.id);
+              await _firestore.markNotificationRead(notif.id);
+              if (mounted) {
+                setState(() => _handledCollabIds.add(notif.id));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Collab accepted! Content shared to your profile.'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(
+              'Accept',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          height: 30,
+          child: OutlinedButton(
+            onPressed: () async {
+              await _collabService.rejectInvite(notif.id);
+              await _firestore.markNotificationRead(notif.id);
+              if (mounted) setState(() => _handledCollabIds.add(notif.id));
+            },
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: subColor.withAlpha(80)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            child: Text(
+              'Decline',
               style: GoogleFonts.inter(fontSize: 11, color: subColor),
             ),
           ),

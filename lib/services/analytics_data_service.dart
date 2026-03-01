@@ -12,7 +12,6 @@ class AnalyticsDataService {
     final snap = await _db
         .collection('transactions')
         .where('uid', isEqualTo: uid)
-        .where('type', isEqualTo: 'earned')
         .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
         .orderBy('createdAt', descending: false)
         .get();
@@ -27,7 +26,9 @@ class AnalyticsDataService {
     }
 
     for (final doc in snap.docs) {
-      final ts = (doc.data()['createdAt'] as Timestamp?)?.toDate();
+      final data = doc.data();
+      if (data['type'] != 'earned') continue;
+      final ts = (data['createdAt'] as Timestamp?)?.toDate();
       if (ts != null) {
         final key = fmt.format(ts);
         counts[key] = (counts[key] ?? 0) + 1;
@@ -42,9 +43,8 @@ class AnalyticsDataService {
     final snap = await _db
         .collection('transactions')
         .where('uid', isEqualTo: uid)
-        .where('type', isEqualTo: 'earned')
         .orderBy('createdAt', descending: true)
-        .limit(500)
+        .limit(1000)
         .get();
 
     final counts = <int, int>{};
@@ -53,7 +53,9 @@ class AnalyticsDataService {
     }
 
     for (final doc in snap.docs) {
-      final ts = (doc.data()['createdAt'] as Timestamp?)?.toDate();
+      final data = doc.data();
+      if (data['type'] != 'earned') continue;
+      final ts = (data['createdAt'] as Timestamp?)?.toDate();
       if (ts != null) {
         counts[ts.hour] = (counts[ts.hour] ?? 0) + 1;
       }
@@ -70,7 +72,6 @@ class AnalyticsDataService {
     final snap = await _db
         .collection('transactions')
         .where('uid', isEqualTo: uid)
-        .where('type', isEqualTo: 'earned')
         .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
         .orderBy('createdAt', descending: false)
         .get();
@@ -84,8 +85,10 @@ class AnalyticsDataService {
     }
 
     for (final doc in snap.docs) {
-      final ts = (doc.data()['createdAt'] as Timestamp?)?.toDate();
-      final amount = doc.data()['amount'] as int? ?? 0;
+      final data = doc.data();
+      if (data['type'] != 'earned') continue;
+      final ts = (data['createdAt'] as Timestamp?)?.toDate();
+      final amount = data['amount'] as int? ?? 0;
       if (ts != null) {
         final key = fmt.format(ts);
         dailyPoints[key] = (dailyPoints[key] ?? 0) + amount;

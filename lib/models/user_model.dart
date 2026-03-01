@@ -49,6 +49,11 @@ class UserModel {
   final String consistencyBadge;
   // Silent mode (Feature 11)
   final bool silentModeEnabled;
+  // Shadow visibility
+  final bool shadowBanned;
+  final double reachMultiplier;
+  // Relationship strength
+  final Map<String, dynamic> interactionScores;
 
   UserModel({
     required this.uid,
@@ -94,6 +99,9 @@ class UserModel {
     this.consistencyScore = 0.0,
     this.consistencyBadge = 'new_creator',
     this.silentModeEnabled = false,
+    this.shadowBanned = false,
+    this.reachMultiplier = 1.0,
+    Map<String, dynamic>? interactionScores,
   }) : privacySettings =
            privacySettings ??
            {
@@ -107,6 +115,7 @@ class UserModel {
        pinnedReelIds = pinnedReelIds ?? [],
        closeFriends = closeFriends ?? [],
        behaviorProfile = behaviorProfile ?? {},
+       interactionScores = interactionScores ?? {},
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
@@ -166,6 +175,9 @@ class UserModel {
       consistencyScore: (map['consistencyScore'] ?? 0.0).toDouble(),
       consistencyBadge: map['consistencyBadge'] ?? 'new_creator',
       silentModeEnabled: map['silentModeEnabled'] ?? false,
+      shadowBanned: map['shadowBanned'] ?? false,
+      reachMultiplier: (map['reachMultiplier'] ?? 1.0).toDouble(),
+      interactionScores: Map<String, dynamic>.from(map['interactionScores'] ?? {}),
     );
   }
 
@@ -218,6 +230,9 @@ class UserModel {
       'consistencyScore': consistencyScore,
       'consistencyBadge': consistencyBadge,
       'silentModeEnabled': silentModeEnabled,
+      'shadowBanned': shadowBanned,
+      'reachMultiplier': reachMultiplier,
+      'interactionScores': interactionScores,
     };
   }
 
@@ -265,6 +280,9 @@ class UserModel {
     double? consistencyScore,
     String? consistencyBadge,
     bool? silentModeEnabled,
+    bool? shadowBanned,
+    double? reachMultiplier,
+    Map<String, dynamic>? interactionScores,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -310,6 +328,9 @@ class UserModel {
       consistencyScore: consistencyScore ?? this.consistencyScore,
       consistencyBadge: consistencyBadge ?? this.consistencyBadge,
       silentModeEnabled: silentModeEnabled ?? this.silentModeEnabled,
+      shadowBanned: shadowBanned ?? this.shadowBanned,
+      reachMultiplier: reachMultiplier ?? this.reachMultiplier,
+      interactionScores: interactionScores ?? this.interactionScores,
     );
   }
 }

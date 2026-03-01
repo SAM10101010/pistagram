@@ -9,6 +9,8 @@ import '../models/user_model.dart';
 import '../services/messaging_service.dart';
 import '../services/auth_service.dart';
 import '../services/cloudinary_service.dart';
+import '../services/firestore_service.dart';
+import 'post_detail_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -661,6 +663,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final hasMedia = msg.mediaUrl.isNotEmpty;
     final hasText = msg.text.isNotEmpty;
     final isDeepLink = msg.text.contains('pistagram://');
+    final hasSharedContent = msg.sharedContentType.isNotEmpty && msg.sharedContentId.isNotEmpty;
 
     return Container(
       constraints: BoxConstraints(
@@ -707,16 +710,19 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
+          // Shared content preview (post/reel with thumbnail)
+          if (hasSharedContent)
+            _buildSharedContentPreview(msg, isMe, accent, isDark),
           // Text content
           if (hasText)
             Padding(
               padding: EdgeInsets.only(
                 left: 14,
                 right: 14,
-                top: hasMedia ? 8 : 10,
+                top: hasMedia || hasSharedContent ? 8 : 10,
                 bottom: msg.isEdited ? 2 : 10,
               ),
-              child: isDeepLink
+              child: isDeepLink && !hasSharedContent
                   ? _buildDeepLinkText(
                       msg.text,
                       isMe,
@@ -756,6 +762,104 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildSharedContentPreview(
+    MessageModel msg,
+    bool isMe,
+    Color accent,
+    bool isDark,
+  ) {
+    final type = msg.sharedContentType;
+    final isPost = type == 'post';
+    return GestureDetector(
+      onTap: () => _openSharedContent(type, msg.sharedContentId),
+      child: Container(
+        margin: const EdgeInsets.only(left: 6, right: 6, top: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: isMe ? Colors.white.withAlpha(25) : accent.withAlpha(15),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (msg.sharedThumbnail.isNotEmpty)
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                child: CachedNetworkImage(
+                  imageUrl: msg.sharedThumbnail,
+                  width: double.infinity,
+                  height: 160,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    width: double.infinity,
+                    height: 160,
+                    color: isDark ? const Color(0xFF252540) : Colors.grey[200],
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: accent,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isPost ? Icons.photo_library_rounded : Icons.video_library_rounded,
+                    size: 16,
+                    color: isMe ? Colors.white : accent,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'View ${isPost ? 'Post' : 'Reel'}',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isMe ? Colors.white : accent,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: isMe ? Colors.white70 : accent.withAlpha(180),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSharedContent(String type, String contentId) async {
+    if (type == 'post') {
+      final firestore = FirestoreService();
+      final post = await firestore.getPost(contentId);
+      if (post != null && mounted) {
+        final creator = await firestore.getUser(post.creatorUid);
+        final currentUid = _authService.currentUser?.uid ?? '';
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PostDetailScreen(
+                post: post,
+                creator: creator,
+                isOwn: post.creatorUid == currentUid,
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildDeepLinkText(
     String text,
     bool isMe,
@@ -780,57 +884,71 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final type = match.group(1) ?? '';
+    final contentId = match.group(2) ?? '';
     final linkText = text.replaceAll(match.group(0)!, '').trim();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (linkText.isNotEmpty)
-          Text(
-            linkText,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: isMe
-                  ? Colors.white
-                  : (isDark ? Colors.white.withAlpha(220) : Colors.black87),
-            ),
-          ),
-        if (linkText.isNotEmpty) const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: isMe ? Colors.white.withAlpha(30) : accent.withAlpha(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                type == 'reel'
-                    ? Icons.video_library_rounded
-                    : type == 'story'
-                    ? Icons.auto_awesome
-                    : Icons.photo_library_rounded,
-                size: 16,
-                color: isMe ? Colors.white : accent,
+    return GestureDetector(
+      onTap: () {
+        if (contentId.isNotEmpty) {
+          _openSharedContent(type, contentId);
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (linkText.isNotEmpty)
+            Text(
+              linkText,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: isMe
+                    ? Colors.white
+                    : (isDark ? Colors.white.withAlpha(220) : Colors.black87),
               ),
-              const SizedBox(width: 6),
-              Text(
-                'Shared ${type == 'reel'
-                    ? 'a reel'
-                    : type == 'story'
-                    ? 'a story'
-                    : 'a post'}',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            ),
+          if (linkText.isNotEmpty) const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: isMe ? Colors.white.withAlpha(30) : accent.withAlpha(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  type == 'reel'
+                      ? Icons.video_library_rounded
+                      : type == 'story'
+                      ? Icons.auto_awesome
+                      : Icons.photo_library_rounded,
+                  size: 16,
                   color: isMe ? Colors.white : accent,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  'Shared ${type == 'reel'
+                      ? 'a reel'
+                      : type == 'story'
+                      ? 'a story'
+                      : 'a post'}',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isMe ? Colors.white : accent,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 14,
+                  color: isMe ? Colors.white70 : accent.withAlpha(180),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

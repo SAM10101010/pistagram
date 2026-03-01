@@ -20,14 +20,12 @@ void main() async {
 class PistagramApp extends StatefulWidget {
   const PistagramApp({super.key});
 
+  static ThemeProvider? _instance;
+
   @override
   State<PistagramApp> createState() => _PistagramAppState();
 
-  static ThemeProvider? of(BuildContext context) {
-    return context
-        .findAncestorStateOfType<_PistagramAppState>()
-        ?._themeProvider;
-  }
+  static ThemeProvider? of(BuildContext context) => _instance;
 }
 
 class _PistagramAppState extends State<PistagramApp> {
@@ -39,6 +37,7 @@ class _PistagramAppState extends State<PistagramApp> {
   @override
   void initState() {
     super.initState();
+    PistagramApp._instance = _themeProvider;
     _themeProvider.addListener(() {
       if (mounted) setState(() {});
     });

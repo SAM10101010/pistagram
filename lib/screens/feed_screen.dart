@@ -23,6 +23,7 @@ import 'post_likes_screen.dart';
 import 'reel_likes_screen.dart';
 import 'share_post_chat_screen.dart';
 import 'share_reel_chat_screen.dart';
+import 'reel_detail_screen.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -996,8 +997,12 @@ class _FeedScreenState extends State<FeedScreen>
               ),
             ),
           ),
-          // Post image with double-tap to like + pinch-to-zoom
+          // Post image with tap to view reel + double-tap to like
           GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              SlideRightRoute(page: ReelDetailScreen(reelId: reel.reelId)),
+            ),
             onDoubleTap: () => _onDoubleTapLikeReel(reel),
             child: Stack(
               alignment: Alignment.center,
@@ -1083,6 +1088,19 @@ class _FeedScreenState extends State<FeedScreen>
                         );
                       },
                     ),
+                  ),
+                ),
+                // Video play icon overlay
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(120),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
                   ),
                 ),
                 if (showHeart)

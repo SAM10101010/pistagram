@@ -498,12 +498,16 @@ class _ReelDetailScreenState extends State<ReelDetailScreen> {
                     child: Row(
                       children: [
                         GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            SlideRightRoute(
-                              page: ProfileScreen(userId: _reel!.creatorUid),
-                            ),
-                          ),
+                          onTap: () {
+                            _videoController?.pause();
+                            AudioPlaybackService.instance.stop();
+                            Navigator.push(
+                              context,
+                              SlideRightRoute(
+                                page: ProfileScreen(userId: _reel!.creatorUid),
+                              ),
+                            );
+                          },
                           child: CircleAvatar(
                             radius: 20,
                             backgroundImage:

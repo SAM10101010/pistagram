@@ -40,6 +40,9 @@ class MessagingService {
     required String senderUid,
     String text = '',
     String mediaUrl = '',
+    String sharedContentType = '',
+    String sharedContentId = '',
+    String sharedThumbnail = '',
   }) async {
     final message = MessageModel(
       id: _uuid.v4(),
@@ -47,6 +50,9 @@ class MessagingService {
       senderUid: senderUid,
       text: text,
       mediaUrl: mediaUrl,
+      sharedContentType: sharedContentType,
+      sharedContentId: sharedContentId,
+      sharedThumbnail: sharedThumbnail,
     );
     await _firestoreService.sendMessage(message);
 

@@ -492,6 +492,50 @@ class FirestoreService {
     await _transactions.doc(txn.id).set(txn.toMap());
   }
 
+  /// Returns true if check-in was successful, false if already claimed today
+  Future<bool> claimDailyCheckIn(String uid) async {
+    final userDoc = _users.doc(uid);
+    final snap = await userDoc.get();
+    if (!snap.exists) return false;
+    final data = snap.data() as Map<String, dynamic>;
+    final lastCheckin = (data['lastDailyCheckin'] as Timestamp?)?.toDate();
+    final now = DateTime.now();
+    if (lastCheckin != null &&
+        lastCheckin.year == now.year &&
+        lastCheckin.month == now.month &&
+        lastCheckin.day == now.day) {
+      return false; // Already claimed today
+    }
+    await userDoc.update({
+      'lastDailyCheckin': Timestamp.fromDate(now),
+      'pointsBalance': FieldValue.increment(1),
+      'totalPointsEarned': FieldValue.increment(1),
+    });
+    final txn = TransactionModel(
+      id: 'checkin_${uid}_${now.millisecondsSinceEpoch}',
+      uid: uid,
+      type: 'earned',
+      amount: 1,
+      reason: 'Daily check-in reward',
+      createdAt: now,
+    );
+    await addTransaction(txn);
+    return true;
+  }
+
+  /// Check if user already claimed daily check-in today
+  Future<bool> hasClaimedDailyCheckIn(String uid) async {
+    final snap = await _users.doc(uid).get();
+    if (!snap.exists) return false;
+    final data = snap.data() as Map<String, dynamic>;
+    final lastCheckin = (data['lastDailyCheckin'] as Timestamp?)?.toDate();
+    if (lastCheckin == null) return false;
+    final now = DateTime.now();
+    return lastCheckin.year == now.year &&
+        lastCheckin.month == now.month &&
+        lastCheckin.day == now.day;
+  }
+
   Future<List<TransactionModel>> getUserTransactions(
     String uid, {
     int limit = 50,

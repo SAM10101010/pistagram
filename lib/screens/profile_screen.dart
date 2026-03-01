@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_model.dart';
 import '../models/reel_model.dart';
 import '../models/post_model.dart';
+import '../models/follow_model.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../services/follow_service.dart';
@@ -23,14 +24,18 @@ import 'post_detail_screen.dart';
 import 'chat_screen.dart';
 import 'achievements_screen.dart';
 import 'boost_reel_screen.dart';
+import 'reel_detail_screen.dart';
 import 'follow_requests_screen.dart';
+import 'report_screen.dart';
+import 'support_ticket_screen.dart';
 import '../models/story_model.dart';
 import '../widgets/rotating_story_ring.dart';
 import 'story_viewer_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
-  const ProfileScreen({super.key, this.userId});
+  final ValueNotifier<int>? activeTabNotifier;
+  const ProfileScreen({super.key, this.userId, this.activeTabNotifier});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -70,8 +75,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     final uid = widget.userId ?? myUid;
     _isOwn = uid == myUid;
     _tabController = TabController(length: _isOwn ? 5 : 4, vsync: this);
+    widget.activeTabNotifier?.addListener(_onTabChanged);
     _loadCachedProfile();
     _loadProfile();
+  }
+
+  void _onTabChanged() {
+    if (widget.activeTabNotifier?.value == 4) {
+      _loadProfile();
+    }
   }
 
   /// Load profile from local cache first for instant display
@@ -139,7 +151,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       final uid = widget.userId ?? myUid;
       _isOwn = uid == myUid;
 
-      // Load user + content in parallel
+      // Load user + content + follow status in parallel
       final userFuture = _firestore.getUser(uid);
       final reelsFuture = _firestore
           .getReelsByUser(uid)
@@ -147,44 +159,41 @@ class _ProfileScreenState extends State<ProfileScreen>
       final postsFuture = _firestore
           .getPostsByUser(uid)
           .catchError((_) => <PostModel>[]);
+      final followFuture = !_isOwn
+          ? _firestore.getFollow(myUid, uid).catchError((_) => null)
+          : Future.value(null);
+      final storiesFuture = _firestore
+          .getActiveStories(uid)
+          .catchError((_) => <StoryModel>[]);
 
-      final results = await Future.wait([userFuture, reelsFuture, postsFuture]);
+      final results = await Future.wait([
+        userFuture,
+        reelsFuture,
+        postsFuture,
+        followFuture,
+        storiesFuture,
+      ]);
       _user = results[0] as UserModel?;
       _reels = results[1] as List<ReelModel>;
       _posts = results[2] as List<PostModel>;
+      _profileStories = results[4] as List<StoryModel>;
+
+      // Set follow status from parallel result
+      if (!_isOwn) {
+        final follow = results[3] as FollowModel?;
+        if (follow != null) {
+          _followStatus = follow.status;
+          _isFollowing = follow.status == 'accepted';
+        }
+      }
 
       // Cache the profile for next time
       if (_user != null) _cacheProfile(_user!);
 
-      // Recalculate follow counts to fix any drift
-      if (_user != null) {
-        try {
-          await _firestore.recalculateFollowCounts(_user!.uid);
-          final refreshed = await _firestore.getUser(_user!.uid);
-          if (refreshed != null) _user = refreshed;
-        } catch (e) {
-          debugPrint('Error recalculating follow counts: $e');
-        }
-      }
+      // Show UI immediately with core data loaded
+      if (mounted) setState(() => _loading = false);
 
-      // Check follow status for other profiles
-      if (!_isOwn) {
-        try {
-          final follow = await _firestore.getFollow(myUid, uid);
-          _followStatus = follow?.status ?? 'none';
-          _isFollowing = follow != null && follow.status == 'accepted';
-        } catch (e) {
-          debugPrint('Error checking follow: $e');
-          // Fallback: try the direct status check
-          try {
-            final status = await _firestore.getFollowStatus(myUid, uid);
-            _followStatus = status;
-            _isFollowing = status == 'accepted';
-          } catch (_) {}
-        }
-      }
-
-      // Load saved posts, saved reels & liked content for own profile in parallel
+      // Load remaining data in background (saved, liked, vault, achievements)
       if (_isOwn) {
         final savedReelsFuture = _loadSavedReels(
           myUid,
@@ -201,46 +210,41 @@ class _ProfileScreenState extends State<ProfileScreen>
         final vaultReelsFuture = _loadVaultReels(
           myUid,
         ).catchError((_) => <ReelModel>[]);
-        final results = await Future.wait([
+        final bgResults = await Future.wait([
           savedReelsFuture,
           savedPostsFuture,
           likedReelsFuture,
           likedPostsFuture,
           vaultReelsFuture,
         ]);
-        _savedReels = results[0] as List<ReelModel>;
-        _savedPosts = results[1] as List<PostModel>;
-        _likedReels = results[2] as List<ReelModel>;
-        _likedPosts = results[3] as List<PostModel>;
-        _vaultReels = results[4] as List<ReelModel>;
+        _savedReels = bgResults[0] as List<ReelModel>;
+        _savedPosts = bgResults[1] as List<PostModel>;
+        _likedReels = bgResults[2] as List<ReelModel>;
+        _likedPosts = bgResults[3] as List<PostModel>;
+        _vaultReels = bgResults[4] as List<ReelModel>;
+        if (mounted) setState(() {});
       }
 
-      // Load achievements for profile display
+      // Load achievements in background
       _earnedAchievements = await AchievementService().getUserAchievements(
         widget.userId ?? _authService.currentUser?.uid ?? '',
       );
-
-      // Load stories for this profile
-      try {
-        _profileStories = await _firestore.getActiveStories(uid);
-      } catch (_) {
-        _profileStories = [];
-      }
+      if (mounted) setState(() {});
 
       // Load pending follow requests count for own private account
       if (_isOwn && (_user?.isPrivate ?? false)) {
         try {
           final pending = await _followService.getPendingRequests(uid);
           _pendingRequestsCount = pending.length;
+          if (mounted) setState(() {});
         } catch (_) {
           _pendingRequestsCount = 0;
         }
       }
     } catch (e) {
       debugPrint('Error loading profile: $e');
+      if (mounted) setState(() => _loading = false);
     }
-
-    if (mounted) setState(() => _loading = false);
   }
 
   Future<List<ReelModel>> _loadSavedReels(String uid) async {
@@ -444,8 +448,69 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Future<void> _handleProfileAction(String action) async {
+    final targetUid = widget.userId ?? '';
+    if (targetUid.isEmpty) return;
+
+    if (action == 'report') {
+      Navigator.push(
+        context,
+        SlideRightRoute(
+          page: ReportScreen(targetType: 'user', targetId: targetUid),
+        ),
+      );
+    } else if (action == 'block') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Block @${_user?.username ?? 'user'}?'),
+          content: const Text(
+            'They won\'t be able to see your profile, reels, or send you messages. You will also unfollow each other.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Block', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) {
+        final myUid = _authService.currentUser?.uid ?? '';
+        await _followService.blockUser(myUid, targetUid);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('@${_user?.username ?? 'User'} has been blocked'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      }
+    } else if (action == 'fraud') {
+      Navigator.push(
+        context,
+        SlideRightRoute(
+          page: SupportTicketScreen(
+            prefilledCategory: 'fraud',
+            prefilledSubject: 'Fraud Report: @${_user?.username ?? targetUid}',
+            prefilledDescription:
+                'I want to report suspicious/fraudulent activity by user @${_user?.username ?? ''} (UID: $targetUid).\n\nDetails:\n',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   void dispose() {
+    widget.activeTabNotifier?.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -496,7 +561,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           ? const Color(0xFF0D0D0D)
           : const Color(0xFFF8F9FA),
       body: SafeArea(
-        child: NestedScrollView(
+        child: RefreshIndicator(
+          onRefresh: _loadProfile,
+          color: accent,
+          child: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) => [
             SliverToBoxAdapter(
               child: Column(
@@ -621,6 +689,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ],
                 ),
         ),
+      ),
       ),
     );
   }
@@ -990,7 +1059,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    // Other user: Follow + Message buttons
+    // Other user: Follow + Message + More buttons
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -1047,6 +1116,44 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
           ),
+        ),
+        const SizedBox(width: 8),
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert_rounded, color: textColor, size: 22),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          onSelected: (value) => _handleProfileAction(value),
+          itemBuilder: (_) => [
+            const PopupMenuItem(
+              value: 'report',
+              child: Row(
+                children: [
+                  Icon(Icons.flag_outlined, size: 20, color: Colors.orange),
+                  SizedBox(width: 10),
+                  Text('Report User'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'block',
+              child: Row(
+                children: [
+                  Icon(Icons.block_rounded, size: 20, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Block User'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'fraud',
+              child: Row(
+                children: [
+                  Icon(Icons.gpp_bad_outlined, size: 20, color: Colors.deepOrange),
+                  SizedBox(width: 10),
+                  Text('Report Fraud'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -1743,6 +1850,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         final reel = sorted[i];
         final isPinned = pinned.contains(reel.reelId);
         return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            SlideRightRoute(page: ReelDetailScreen(reelId: reel.reelId)),
+          ),
           onLongPress: showActions
               ? () => _showReelOptions(reel, isPinned)
               : null,
@@ -1952,17 +2063,72 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _showReelOptions(ReelModel reel, bool isPinned) {
     final accent = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? Colors.white54 : Colors.black54;
     showModalBottomSheet(
       context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
-        child: Wrap(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: subColor.withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.edit_outlined, color: accent),
+              title: Text(
+                'Edit Caption',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showEditReelCaptionDialog(reel, accent, isDark);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.visibility_outlined, color: accent),
+              title: Text(
+                'Change Visibility',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              subtitle: Text(
+                'Currently: ${reel.visibility}',
+                style: GoogleFonts.inter(color: subColor, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showReelVisibilityPicker(reel, accent, isDark);
+              },
+            ),
             ListTile(
               leading: Icon(
                 isPinned ? Icons.push_pin_outlined : Icons.push_pin,
                 color: accent,
               ),
-              title: Text(isPinned ? 'Unpin from Profile' : 'Pin to Profile'),
+              title: Text(
+                isPinned ? 'Unpin from Profile' : 'Pin to Profile',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 _togglePin(reel);
@@ -1970,7 +2136,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             ListTile(
               leading: Icon(Icons.rocket_launch_rounded, color: accent),
-              title: const Text('Boost Reel'),
+              title: Text(
+                'Boost Reel',
+                style: GoogleFonts.inter(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 Navigator.push(
@@ -1980,16 +2152,142 @@ class _ProfileScreenState extends State<ProfileScreen>
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text(
+              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              title: Text(
                 'Delete Reel',
-                style: TextStyle(color: Colors.red),
+                style: GoogleFonts.inter(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               onTap: () {
                 Navigator.pop(ctx);
                 _deleteReel(reel);
               },
             ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditReelCaptionDialog(ReelModel reel, Color accent, bool isDark) {
+    final ctrl = TextEditingController(text: reel.caption);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Edit Caption',
+          style: GoogleFonts.inter(
+            color: textColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 4,
+          style: TextStyle(color: textColor),
+          decoration: InputDecoration(
+            hintText: 'Write a caption...',
+            hintStyle: TextStyle(
+              color: isDark ? Colors.white30 : Colors.black26,
+            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _firestore.updateReel(reel.reelId, {
+                'caption': ctrl.text.trim(),
+              });
+              _loadProfile();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Save',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReelVisibilityPicker(ReelModel reel, Color accent, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            for (final v in ['public', 'followers', 'private'])
+              ListTile(
+                leading: Icon(
+                  v == 'public'
+                      ? Icons.public
+                      : v == 'followers'
+                      ? Icons.people
+                      : Icons.lock,
+                  color: reel.visibility == v
+                      ? accent
+                      : (isDark ? Colors.white38 : Colors.black38),
+                ),
+                title: Text(
+                  v[0].toUpperCase() + v.substring(1),
+                  style: GoogleFonts.inter(
+                    color: textColor,
+                    fontWeight: reel.visibility == v
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+                trailing: reel.visibility == v
+                    ? Icon(Icons.check_circle, color: accent)
+                    : null,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _firestore.updateReel(reel.reelId, {'visibility': v});
+                  _loadProfile();
+                },
+              ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -2106,51 +2404,64 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildVaultTab(Color accent, bool isDark, Color subColor) {
     if (!_vaultUnlocked) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.lock_rounded, size: 56, color: accent.withAlpha(180)),
-            const SizedBox(height: 16),
-            Text(
-              'Private Vault',
-              style: GoogleFonts.outfit(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Your hidden reels are PIN-protected',
-              style: GoogleFonts.inter(color: subColor, fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-            ScaleTap(
-              onTap: () => _handleVaultAccess(accent, isDark),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  gradient: LinearGradient(
-                    colors: [accent, accent.withAlpha(200)],
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_rounded, size: 36, color: accent.withAlpha(180)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Private Vault',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Your hidden reels are PIN-protected',
+                        style: GoogleFonts.inter(color: subColor, fontSize: 12),
+                      ),
+                      const SizedBox(height: 10),
+                      ScaleTap(
+                        onTap: () => _handleVaultAccess(accent, isDark),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            gradient: LinearGradient(
+                              colors: [accent, accent.withAlpha(200)],
+                            ),
+                          ),
+                          child: Text(
+                            'Unlock Vault',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Text(
-                  'Unlock Vault',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
               ),
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
@@ -2323,6 +2634,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     final textColor = isDark ? Colors.white : Colors.black87;
     final pinController = TextEditingController();
     final confirmController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    String? savedPin;
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -2424,7 +2737,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               final pin = pinController.text.trim();
               final confirm = confirmController.text.trim();
               if (pin.length != 4) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(
                       'PIN must be 4 digits',
@@ -2436,7 +2749,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 return;
               }
               if (pin != confirm) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(
                       'PINs do not match',
@@ -2447,6 +2760,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 );
                 return;
               }
+              savedPin = pin;
               Navigator.pop(ctx, true);
             },
             style: ElevatedButton.styleFrom(
@@ -2466,15 +2780,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         ],
       ),
     );
-    if (result == true) {
+    if (result == true && savedPin != null) {
       await _secureStorage.write(
         key: 'vault_pin',
-        value: pinController.text.trim(),
+        value: savedPin!,
       );
-      setState(() => _vaultUnlocked = true);
+      if (mounted) setState(() => _vaultUnlocked = true);
     }
-    pinController.dispose();
-    confirmController.dispose();
   }
 
   Future<void> _showPinEntryDialog(
@@ -2484,6 +2796,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   ) async {
     final textColor = isDark ? Colors.white : Colors.black87;
     final pinController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -2556,7 +2869,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               if (pinController.text.trim() == correctPin) {
                 Navigator.pop(ctx, true);
               } else {
-                ScaffoldMessenger.of(ctx).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(
                       'Incorrect PIN',
@@ -2584,10 +2897,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         ],
       ),
     );
-    if (result == true) {
+    if (result == true && mounted) {
       setState(() => _vaultUnlocked = true);
     }
-    pinController.dispose();
   }
 
   Widget _buildEmptyTab(String message, IconData icon, Color color) {

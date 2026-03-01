@@ -17,7 +17,8 @@ import 'mystery_box_screen.dart';
 import 'transfer_points_screen.dart';
 
 class WalletScreen extends StatefulWidget {
-  const WalletScreen({super.key});
+  final ValueNotifier<int>? activeTabNotifier;
+  const WalletScreen({super.key, this.activeTabNotifier});
 
   @override
   State<WalletScreen> createState() => _WalletScreenState();
@@ -30,6 +31,8 @@ class _WalletScreenState extends State<WalletScreen>
   UserModel? _user;
   List<TransactionModel> _transactions = [];
   bool _loading = true;
+  bool _checkedInToday = false;
+  bool _claimingCheckIn = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -37,7 +40,20 @@ class _WalletScreenState extends State<WalletScreen>
   @override
   void initState() {
     super.initState();
+    widget.activeTabNotifier?.addListener(_onTabChanged);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    widget.activeTabNotifier?.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (widget.activeTabNotifier?.value == 3) {
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
@@ -46,17 +62,51 @@ class _WalletScreenState extends State<WalletScreen>
       // Try cache first for instant display
       _user = CacheService.instance.getCachedUser(uid);
       if (_user != null && mounted) setState(() => _loading = false);
-      // Fetch fresh from Firestore
+      // Always fetch fresh from Firestore to ensure points are in sync
       final freshUser = await _firestore.getUser(uid);
       if (freshUser != null) {
         CacheService.instance.cacheUser(freshUser);
         _user = freshUser;
       }
       _transactions = await _firestore.getUserTransactions(uid);
+      _checkedInToday = await _firestore.hasClaimedDailyCheckIn(uid);
     } catch (e) {
       debugPrint('Wallet load error: $e');
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _claimDailyCheckIn() async {
+    if (_claimingCheckIn || _checkedInToday) return;
+    setState(() => _claimingCheckIn = true);
+    try {
+      final uid = _auth.currentUser?.uid ?? '';
+      final success = await _firestore.claimDailyCheckIn(uid);
+      if (success) {
+        _checkedInToday = true;
+        // Refresh user data and transactions
+        final freshUser = await _firestore.getUser(uid);
+        if (freshUser != null) {
+          CacheService.instance.cacheUser(freshUser);
+          _user = freshUser;
+        }
+        _transactions = await _firestore.getUserTransactions(uid);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('+1 point! Daily check-in claimed'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Check-in error: $e');
+    }
+    if (mounted) setState(() => _claimingCheckIn = false);
   }
 
   @override
@@ -253,7 +303,7 @@ class _WalletScreenState extends State<WalletScreen>
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '${_user?.pointsBalance ?? 0}',
+                      (_user?.pointsBalance ?? 0).toString(),
                       style: GoogleFonts.outfit(
                         fontSize: 48,
                         fontWeight: FontWeight.w800,
@@ -360,6 +410,129 @@ class _WalletScreenState extends State<WalletScreen>
                 ),
               ),
               const SizedBox(height: 28),
+
+              // Daily Check-in Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: _checkedInToday
+                      ? null
+                      : LinearGradient(
+                          colors: [
+                            accent.withAlpha(30),
+                            accent.withAlpha(10),
+                          ],
+                        ),
+                  color: _checkedInToday
+                      ? (isDark ? const Color(0xFF1A1A2E) : Colors.white)
+                      : null,
+                  border: Border.all(
+                    color: _checkedInToday
+                        ? Colors.green.withAlpha(60)
+                        : accent.withAlpha(40),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _checkedInToday
+                            ? Colors.green.withAlpha(25)
+                            : accent.withAlpha(25),
+                      ),
+                      child: Icon(
+                        _checkedInToday
+                            ? Icons.check_circle_rounded
+                            : Icons.calendar_today_rounded,
+                        color: _checkedInToday ? Colors.green : accent,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Daily Check-in',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _checkedInToday
+                                ? 'Come back tomorrow for more!'
+                                : 'Claim your free daily point',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: subColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_checkedInToday)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withAlpha(20),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Claimed',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green,
+                          ),
+                        ),
+                      )
+                    else
+                      ElevatedButton(
+                        onPressed: _claimingCheckIn ? null : _claimDailyCheckIn,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          elevation: 0,
+                        ),
+                        child: _claimingCheckIn
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                '+1 Point',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Viewer Level
               if (_user != null) ...[

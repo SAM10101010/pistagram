@@ -26,11 +26,13 @@ class _SharePostChatScreenState extends State<SharePostChatScreen> {
   final Set<String> _selected = {};
   bool _loading = true;
   bool _sending = false;
+  String _postThumbnail = '';
 
   @override
   void initState() {
     super.initState();
     _load();
+    _fetchPostThumbnail();
     _searchController.addListener(_filter);
   }
 
@@ -68,6 +70,15 @@ class _SharePostChatScreenState extends State<SharePostChatScreen> {
     }
   }
 
+  Future<void> _fetchPostThumbnail() async {
+    try {
+      final post = await _firestore.getPost(widget.postId);
+      if (post != null && post.mediaUrls.isNotEmpty && mounted) {
+        setState(() => _postThumbnail = post.mediaUrls.first);
+      }
+    } catch (_) {}
+  }
+
   void _filter() {
     final query = _searchController.text.toLowerCase();
     setState(() {
@@ -90,8 +101,10 @@ class _SharePostChatScreenState extends State<SharePostChatScreen> {
           await _messaging.sendMessage(
             chatId: chatUser.chatId,
             senderUid: currentUid,
-            text: 'Check out this post! pistagram://post/${widget.postId}',
-            mediaUrl: '',
+            text: 'Check out this post!',
+            sharedContentType: 'post',
+            sharedContentId: widget.postId,
+            sharedThumbnail: _postThumbnail,
           );
         }
       }

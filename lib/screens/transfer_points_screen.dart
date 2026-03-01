@@ -33,7 +33,8 @@ class _TransferPointsScreenState extends State<TransferPointsScreen> {
   }
 
   Future<void> _loadBalance() async {
-    final pts = await _pointsService.getPoints();
+    final uid = _authService.currentUser?.uid ?? '';
+    final pts = await _pointsService.getPoints(uid: uid);
     if (mounted) setState(() => _currentBalance = pts);
   }
 

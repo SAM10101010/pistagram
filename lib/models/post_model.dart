@@ -29,6 +29,8 @@ class PostModel {
   // Music fields
   final String musicUrl;
   final String musicName;
+  // Collaboration
+  final List<String> collaborators;
 
   PostModel({
     required this.postId,
@@ -57,8 +59,10 @@ class PostModel {
     this.stickers = const [],
     this.musicUrl = '',
     this.musicName = '',
+    List<String>? collaborators,
   })  : hashtags = hashtags ?? [],
         taggedUsers = taggedUsers ?? [],
+        collaborators = collaborators ?? [],
         createdAt = createdAt ?? DateTime.now();
 
   factory PostModel.fromMap(Map<String, dynamic> map) {
@@ -89,6 +93,7 @@ class PostModel {
       stickers: List<Map<String, dynamic>>.from(map['stickers'] ?? []),
       musicUrl: map['musicUrl'] ?? '',
       musicName: map['musicName'] ?? '',
+      collaborators: List<String>.from(map['collaborators'] ?? []),
     );
   }
 
@@ -120,6 +125,7 @@ class PostModel {
       'stickers': stickers,
       'musicUrl': musicUrl,
       'musicName': musicName,
+      'collaborators': collaborators,
     };
   }
 
@@ -150,6 +156,7 @@ class PostModel {
     List<Map<String, dynamic>>? stickers,
     String? musicUrl,
     String? musicName,
+    List<String>? collaborators,
   }) {
     return PostModel(
       postId: postId ?? this.postId,
@@ -178,6 +185,7 @@ class PostModel {
       stickers: stickers ?? this.stickers,
       musicUrl: musicUrl ?? this.musicUrl,
       musicName: musicName ?? this.musicName,
+      collaborators: collaborators ?? this.collaborators,
     );
   }
 }

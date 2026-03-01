@@ -54,6 +54,19 @@ class ReelModel {
   final double engagementLastHour;
   final double engagementPreviousHour;
   final String momentumStatus;
+  // Quality Audit
+  final double qualityScore;
+  final double retentionPercent;
+  final double discussionDepth;
+  final double saveRate;
+  final bool qualityVerified;
+  final double qualityScoreWeight;
+  // Shadow Visibility
+  final bool shadowLimited;
+  final double visibilityMultiplier;
+  final double rankingWeight;
+  // Collaboration
+  final List<String> collaborators;
 
   ReelModel({
     required this.reelId,
@@ -101,8 +114,19 @@ class ReelModel {
     this.engagementLastHour = 0.0,
     this.engagementPreviousHour = 0.0,
     this.momentumStatus = 'stable',
+    this.qualityScore = 0.0,
+    this.retentionPercent = 0.0,
+    this.discussionDepth = 0.0,
+    this.saveRate = 0.0,
+    this.qualityVerified = false,
+    this.qualityScoreWeight = 1.0,
+    this.shadowLimited = false,
+    this.visibilityMultiplier = 1.0,
+    this.rankingWeight = 1.0,
+    List<String>? collaborators,
   }) : hashtags = hashtags ?? [],
        taggedUsers = taggedUsers ?? [],
+       collaborators = collaborators ?? [],
        categoryVoteCounts = categoryVoteCounts ?? {},
        createdAt = createdAt ?? DateTime.now();
 
@@ -158,6 +182,16 @@ class ReelModel {
       engagementLastHour: (map['engagementLastHour'] ?? 0.0).toDouble(),
       engagementPreviousHour: (map['engagementPreviousHour'] ?? 0.0).toDouble(),
       momentumStatus: map['momentumStatus'] ?? 'stable',
+      qualityScore: (map['qualityScore'] ?? 0.0).toDouble(),
+      retentionPercent: (map['retentionPercent'] ?? 0.0).toDouble(),
+      discussionDepth: (map['discussionDepth'] ?? 0.0).toDouble(),
+      saveRate: (map['saveRate'] ?? 0.0).toDouble(),
+      qualityVerified: map['qualityVerified'] ?? false,
+      qualityScoreWeight: (map['qualityScoreWeight'] ?? 1.0).toDouble(),
+      shadowLimited: map['shadowLimited'] ?? false,
+      visibilityMultiplier: (map['visibilityMultiplier'] ?? 1.0).toDouble(),
+      rankingWeight: (map['rankingWeight'] ?? 1.0).toDouble(),
+      collaborators: List<String>.from(map['collaborators'] ?? []),
     );
   }
 
@@ -210,6 +244,16 @@ class ReelModel {
       'engagementLastHour': engagementLastHour,
       'engagementPreviousHour': engagementPreviousHour,
       'momentumStatus': momentumStatus,
+      'qualityScore': qualityScore,
+      'retentionPercent': retentionPercent,
+      'discussionDepth': discussionDepth,
+      'saveRate': saveRate,
+      'qualityVerified': qualityVerified,
+      'qualityScoreWeight': qualityScoreWeight,
+      'shadowLimited': shadowLimited,
+      'visibilityMultiplier': visibilityMultiplier,
+      'rankingWeight': rankingWeight,
+      'collaborators': collaborators,
     };
   }
 
@@ -259,6 +303,16 @@ class ReelModel {
     double? engagementLastHour,
     double? engagementPreviousHour,
     String? momentumStatus,
+    double? qualityScore,
+    double? retentionPercent,
+    double? discussionDepth,
+    double? saveRate,
+    bool? qualityVerified,
+    double? qualityScoreWeight,
+    bool? shadowLimited,
+    double? visibilityMultiplier,
+    double? rankingWeight,
+    List<String>? collaborators,
   }) {
     return ReelModel(
       reelId: reelId ?? this.reelId,
@@ -306,6 +360,16 @@ class ReelModel {
       engagementLastHour: engagementLastHour ?? this.engagementLastHour,
       engagementPreviousHour: engagementPreviousHour ?? this.engagementPreviousHour,
       momentumStatus: momentumStatus ?? this.momentumStatus,
+      qualityScore: qualityScore ?? this.qualityScore,
+      retentionPercent: retentionPercent ?? this.retentionPercent,
+      discussionDepth: discussionDepth ?? this.discussionDepth,
+      saveRate: saveRate ?? this.saveRate,
+      qualityVerified: qualityVerified ?? this.qualityVerified,
+      qualityScoreWeight: qualityScoreWeight ?? this.qualityScoreWeight,
+      shadowLimited: shadowLimited ?? this.shadowLimited,
+      visibilityMultiplier: visibilityMultiplier ?? this.visibilityMultiplier,
+      rankingWeight: rankingWeight ?? this.rankingWeight,
+      collaborators: collaborators ?? this.collaborators,
     );
   }
 }

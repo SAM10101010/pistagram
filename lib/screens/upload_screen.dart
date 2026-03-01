@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,11 +11,12 @@ import '../models/reel_model.dart';
 import '../models/post_model.dart';
 import '../models/story_model.dart';
 import '../models/user_model.dart';
-import '../models/notification_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/cloudinary_service.dart';
 import '../services/draft_service.dart';
+import '../services/audio_playback_service.dart';
+import '../services/collab_service.dart';
 import 'drafts_screen.dart';
 import '../utils/animations.dart';
 
@@ -34,6 +36,7 @@ class _UploadScreenState extends State<UploadScreen>
   final _imagePicker = ImagePicker();
   final _captionCtrl = TextEditingController();
   final _draftService = DraftService();
+  final _collabService = CollabService();
 
   // ── State ──
   int _step = 0; // 0=category, 1=select, 2=edit, 3=details
@@ -1217,6 +1220,11 @@ class _UploadScreenState extends State<UploadScreen>
                         _musicEnd = 15;
                       });
                       setState(() {});
+                      // Play music preview immediately after selection
+                      AudioPlaybackService.instance.playFile(
+                        result.files.single.path!,
+                        startSeconds: 0,
+                      );
                     }
                   },
                   child: Container(
@@ -1349,6 +1357,13 @@ class _UploadScreenState extends State<UploadScreen>
                         _musicEnd = end;
                       });
                       setState(() {});
+                      // Update music preview to play from new start position
+                      if (_musicPath != null) {
+                        AudioPlaybackService.instance.playFile(
+                          _musicPath!,
+                          startSeconds: start,
+                        );
+                      }
                     },
                   ),
                   Row(
@@ -1382,7 +1397,11 @@ class _UploadScreenState extends State<UploadScreen>
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx),
+                      onPressed: () {
+                        // Stop music preview when closing picker
+                        AudioPlaybackService.instance.stop();
+                        Navigator.pop(ctx);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: accent,
                         shape: RoundedRectangleBorder(
@@ -2984,6 +3003,7 @@ class _UploadScreenState extends State<UploadScreen>
   Widget _buildUploadingView() {
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subColor = isDark ? Colors.white54 : Colors.black54;
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0D0D0D)
@@ -3015,7 +3035,16 @@ class _UploadScreenState extends State<UploadScreen>
             Text(
               'Uploading your $_category...',
               style: GoogleFonts.inter(
-                color: isDark ? Colors.white54 : Colors.black54,
+                color: subColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextButton.icon(
+              onPressed: _cancelUpload,
+              icon: Icon(Icons.close, color: subColor, size: 18),
+              label: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: subColor),
               ),
             ),
           ],
@@ -3089,29 +3118,57 @@ class _UploadScreenState extends State<UploadScreen>
   }
 
   // ── Upload ──
+  bool _uploadCancelled = false;
+
+  void _cancelUpload() {
+    setState(() {
+      _uploadCancelled = true;
+      _uploading = false;
+      _uploadProgress = 0;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Upload cancelled.', style: GoogleFonts.inter()),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _upload() async {
     if (_selectedMedia.isEmpty) return;
     setState(() {
       _uploading = true;
+      _uploadCancelled = false;
       _uploadProgress = 0.05;
     });
 
     try {
       final uid = _auth.currentUser?.uid ?? '';
 
+      Future<void> uploadTask;
       if (_category == 'post') {
-        await _uploadPost(uid);
+        uploadTask = _uploadPost(uid);
       } else if (_category == 'reel') {
-        await _uploadReel(uid);
+        uploadTask = _uploadReel(uid);
       } else {
-        await _uploadStory(uid);
+        uploadTask = _uploadStory(uid);
       }
+
+      // Wrap upload in a 5-minute timeout
+      await uploadTask.timeout(
+        const Duration(minutes: 5),
+        onTimeout: () {
+          throw TimeoutException('Upload timed out after 5 minutes.');
+        },
+      );
+
+      if (_uploadCancelled) return;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '🎉 ${_category[0].toUpperCase()}${_category.substring(1)} shared!',
+              '${_category[0].toUpperCase()}${_category.substring(1)} shared!',
               style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
             backgroundColor: Colors.green,
@@ -3124,10 +3181,27 @@ class _UploadScreenState extends State<UploadScreen>
         _resetState();
       }
     } catch (e) {
+      if (_uploadCancelled) return;
       if (mounted) {
+        // Build user-friendly error message
+        String errorMsg;
+        final raw = e.toString();
+        if (raw.contains('PERMISSION_DENIED') || raw.contains('permission-denied')) {
+          errorMsg = 'Permission denied. Please check your account and try again.';
+        } else if (raw.contains('UNAVAILABLE') || raw.contains('unavailable') || raw.contains('SocketException')) {
+          errorMsg = 'Network error. Please check your internet connection and try again.';
+        } else if (raw.contains('DEADLINE_EXCEEDED') || raw.contains('deadline-exceeded') || raw.contains('timeout') || raw.contains('TimeoutException')) {
+          errorMsg = 'Upload timed out. Please try again with a smaller file or better connection.';
+        } else if (raw.contains('body') || raw.contains('response')) {
+          errorMsg = 'Server did not respond. Please try again in a moment.';
+        } else if (raw.contains('preset')) {
+          errorMsg = 'Upload configuration error. Please contact support.';
+        } else {
+          errorMsg = 'Upload failed. Please try again.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Upload failed: $e', style: GoogleFonts.inter()),
+            content: Text(errorMsg, style: GoogleFonts.inter()),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
@@ -3193,17 +3267,13 @@ class _UploadScreenState extends State<UploadScreen>
       musicName: _musicName,
     );
     await _firestore.createPost(post);
-    // Send tag notifications
+    // Send collab invites to tagged users (notification + DM)
     for (final taggedUid in _taggedUsers) {
-      _firestore.addNotification(
-        NotificationModel(
-          id: const Uuid().v4(),
-          toUid: taggedUid,
-          fromUid: uid,
-          type: 'tag',
-          reelId: post.postId,
-          message: 'tagged you in a post',
-        ),
+      _collabService.sendCollabInvite(
+        fromUid: uid,
+        toUid: taggedUid,
+        contentType: 'post',
+        contentId: post.postId,
       );
     }
     setState(() => _uploadProgress = 1.0);
@@ -3212,24 +3282,33 @@ class _UploadScreenState extends State<UploadScreen>
   Future<void> _uploadReel(String uid) async {
     setState(() => _uploadProgress = 0.2);
     final file = File(_selectedMedia[0].path);
-    Map<String, String> result;
-    if (_isVideoSelected()) {
-      result = await _cloudinary.uploadVideo(file);
-    } else {
-      result = await _cloudinary.uploadFile(file, folder: 'reels');
-    }
-    setState(() => _uploadProgress = 0.6);
 
-    // Upload music if selected
-    String musicUrl = '';
+    // Upload video and music simultaneously using Future.wait
+    final videoFuture = _isVideoSelected()
+        ? _cloudinary.uploadVideo(file)
+        : _cloudinary.uploadFile(file, folder: 'reels');
+
+    Future<Map<String, String>>? musicFuture;
     if (_musicEnabled && _musicPath != null) {
-      final musicResult = await _cloudinary.uploadFile(
+      musicFuture = _cloudinary.uploadFile(
         File(_musicPath!),
         folder: 'music',
       );
-      musicUrl = musicResult['url'] ?? '';
     }
+
+    // Wait for both uploads in parallel
+    final results = await Future.wait([
+      videoFuture,
+      if (musicFuture != null) musicFuture,
+    ]);
+
     setState(() => _uploadProgress = 0.7);
+
+    final result = results[0];
+    String musicUrl = '';
+    if (musicFuture != null && results.length > 1) {
+      musicUrl = results[1]['url'] ?? '';
+    }
 
     final videoUrl = result['url'] ?? '';
     final thumbnailUrl = _isVideoSelected()
@@ -3273,17 +3352,13 @@ class _UploadScreenState extends State<UploadScreen>
           : null,
     );
     await _firestore.createReel(reel);
-    // Send tag notifications
+    // Send collab invites to tagged users (notification + DM)
     for (final taggedUid in _taggedUsers) {
-      _firestore.addNotification(
-        NotificationModel(
-          id: const Uuid().v4(),
-          toUid: taggedUid,
-          fromUid: uid,
-          type: 'tag',
-          reelId: reel.reelId,
-          message: 'tagged you in a reel',
-        ),
+      _collabService.sendCollabInvite(
+        fromUid: uid,
+        toUid: taggedUid,
+        contentType: 'reel',
+        contentId: reel.reelId,
       );
     }
     setState(() => _uploadProgress = 1.0);
@@ -3330,10 +3405,21 @@ class _UploadScreenState extends State<UploadScreen>
       musicName: _musicName,
     );
     await _firestore.createStory(story);
+    // Send collab invites to tagged users for stories too
+    for (final taggedUid in _taggedUsers) {
+      _collabService.sendCollabInvite(
+        fromUid: uid,
+        toUid: taggedUid,
+        contentType: 'story',
+        contentId: story.storyId,
+      );
+    }
     setState(() => _uploadProgress = 1.0);
   }
 
   void _resetState() {
+    // Stop any music preview that may be playing
+    AudioPlaybackService.instance.stop();
     setState(() {
       _step = 0;
       _selectedMedia.clear();
@@ -3372,6 +3458,7 @@ class _UploadScreenState extends State<UploadScreen>
 
   @override
   void dispose() {
+    AudioPlaybackService.instance.stop();
     _captionCtrl.dispose();
     _videoCtrl?.dispose();
     _locationCtrl.dispose();

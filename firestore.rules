@@ -9,12 +9,20 @@ service cloud.firestore {
     function isOwner(uid) {
       return isAuth() && request.auth.uid == uid;
     }
+    // Admin check: user must be authenticated and have an admin doc
+    function isAdmin() {
+      return isAuth() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // ══════════════════════════════════════════
+    // ── Main App Collections ──
+    // ══════════════════════════════════════════
 
     // ── Users ──
     match /users/{uid} {
       allow read: if isAuth();
       allow create: if isOwner(uid);
-      allow update: if isOwner(uid);
+      allow update: if isAuth();
       allow delete: if false;
     }
 
@@ -23,7 +31,7 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.creatorUid;
       allow update: if isAuth();
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     // ── Posts ──
@@ -31,7 +39,7 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.creatorUid;
       allow update: if isAuth();
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     // ── Stories ──
@@ -82,7 +90,7 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth();
       allow update: if isAuth();
-      allow delete: if isAuth();
+      allow delete: if isAuth() || isAdmin();
     }
 
     // ── Notifications ──
@@ -96,8 +104,8 @@ service cloud.firestore {
     // ── Transactions ──
     match /transactions/{txnId} {
       allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if false;
+      allow create: if isAuth() || isAdmin();
+      allow update: if isAdmin();
       allow delete: if false;
     }
 
@@ -118,22 +126,23 @@ service cloud.firestore {
     // ── Rewards ──
     match /rewards/{rewardId} {
       allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth();
+      allow create: if isAuth() || isAdmin();
+      allow update: if isAuth() || isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ── Redemptions ──
     match /redemptions/{redemptionId} {
       allow read: if isAuth();
       allow create: if isAuth();
-      allow update: if false;
+      allow update: if isAdmin();
     }
 
     // ── Reports ──
     match /reports/{reportId} {
       allow read: if isAuth();
       allow create: if isAuth();
-      allow update: if isAuth();
+      allow update: if isAuth() || isAdmin();
     }
 
     // ── Blocks ──
@@ -147,14 +156,14 @@ service cloud.firestore {
     match /fraud_flags/{flagId} {
       allow read: if isAuth();
       allow create: if isAuth();
-      allow update: if isAuth();
+      allow update: if isAuth() || isAdmin();
     }
 
     // ══════════════════════════════════════════
     // ── Gamification Collections ──
     // ══════════════════════════════════════════
 
-    // ── Reel Engagements (composite key: uid_reelId) ──
+    // ── Reel Engagements ──
     match /reelEngagements/{engagementId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -162,7 +171,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Reel Ratings (composite key: uid_reelId) ──
+    // ── Reel Ratings ──
     match /reelRatings/{ratingId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -178,7 +187,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Series Progress (composite key: uid_seriesId) ──
+    // ── Series Progress ──
     match /seriesProgress/{progressId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -186,23 +195,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Leaderboard Weekly (doc per user, rebuilt by Cloud Function) ──
+    // ── Leaderboard Weekly ──
     match /leaderboardWeekly/{uid} {
       allow read: if isAuth();
-      allow create: if false; // Cloud Function only
+      allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
 
-    // ── Leaderboard Monthly (doc per user, rebuilt by Cloud Function) ──
+    // ── Leaderboard Monthly ──
     match /leaderboardMonthly/{uid} {
       allow read: if isAuth();
-      allow create: if false; // Cloud Function only
+      allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
 
-    // ── User Achievements (composite key: uid_achievementId) ──
+    // ── User Achievements ──
     match /userAchievements/{achievementId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -210,7 +219,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Campaigns (admin-created) ──
+    // ── Campaigns ──
     match /campaigns/{campaignId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -218,7 +227,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Campaign Progress (composite key: uid_campaignId) ──
+    // ── Campaign Progress ──
     match /campaignProgress/{progressId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -226,15 +235,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Boosted Reels (doc per reelId) ──
+    // ── Boosted Reels ──
     match /boostedReels/{reelId} {
       allow read: if isAuth();
       allow create: if isAuth();
       allow update: if isAuth();
-      allow delete: if false; // Cloud Function handles expiry
+      allow delete: if false;
     }
 
-    // ── Predictions (composite key: uid_reelId) ──
+    // ── Predictions ──
     match /predictions/{predictionId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -250,7 +259,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Story Reactions (composite key: userId_storyId) ──
+    // ── Story Reactions ──
     match /storyReactions/{reactionId} {
       allow read: if isAuth();
       allow create: if isAuth();
@@ -266,12 +275,116 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Vault Reels (composite key: uid_reelId) ──
+    // ── Vault Reels ──
     match /vaultReels/{vaultId} {
       allow read: if isAuth();
       allow create: if isAuth();
       allow delete: if isAuth();
       allow update: if false;
+    }
+
+    // ── App Settings (admin signup toggle, etc.) ──
+    match /appSettings/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── Collab Invites ──
+    match /collabInvites/{inviteId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Reel Watch Rewards (per-user dedup) ──
+    match /reelWatchRewards/{docId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ══════════════════════════════════════════
+    // ── Admin App Collections ──
+    // ══════════════════════════════════════════
+
+    // ── Admins (admin user profiles) ──
+    match /admins/{adminId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Admin Activity Logs ──
+    match /adminLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Support Tickets ──
+    match /supportTickets/{ticketId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth() || isAdmin();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /internalNotes/{noteId} {
+        allow read: if isAdmin();
+        allow create: if isAdmin();
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+
+    // ── Challenges ──
+    match /challenges/{challengeId} {
+      allow read: if isAuth();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Moderation Queue ──
+    match /moderationQueue/{itemId} {
+      allow read: if isAdmin();
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Manipulation Alerts ──
+    match /manipulationAlerts/{alertId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ── Report Votes ──
+    match /reportVotes/{voteId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Ranking Audit Logs ──
+    match /rankingAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

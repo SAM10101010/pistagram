@@ -6,6 +6,9 @@ class MessageModel {
   final String senderUid;
   final String text;
   final String mediaUrl;
+  final String sharedContentType;
+  final String sharedContentId;
+  final String sharedThumbnail;
   final bool isEdited;
   final DateTime? readAt;
   final DateTime createdAt;
@@ -16,6 +19,9 @@ class MessageModel {
     required this.senderUid,
     this.text = '',
     this.mediaUrl = '',
+    this.sharedContentType = '',
+    this.sharedContentId = '',
+    this.sharedThumbnail = '',
     this.isEdited = false,
     this.readAt,
     DateTime? createdAt,
@@ -28,6 +34,9 @@ class MessageModel {
       senderUid: map['senderUid'] ?? '',
       text: map['text'] ?? '',
       mediaUrl: map['mediaUrl'] ?? '',
+      sharedContentType: map['sharedContentType'] ?? '',
+      sharedContentId: map['sharedContentId'] ?? '',
+      sharedThumbnail: map['sharedThumbnail'] ?? '',
       isEdited: map['isEdited'] ?? false,
       readAt: (map['readAt'] as Timestamp?)?.toDate(),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -41,6 +50,9 @@ class MessageModel {
       'senderUid': senderUid,
       'text': text,
       'mediaUrl': mediaUrl,
+      'sharedContentType': sharedContentType,
+      'sharedContentId': sharedContentId,
+      'sharedThumbnail': sharedThumbnail,
       'isEdited': isEdited,
       'readAt': readAt != null ? Timestamp.fromDate(readAt!) : null,
       'createdAt': Timestamp.fromDate(createdAt),

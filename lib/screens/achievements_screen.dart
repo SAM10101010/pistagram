@@ -252,7 +252,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           crossAxisCount: 3,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
-          childAspectRatio: 0.85,
+          childAspectRatio: 0.72,
         ),
         itemCount: achievements.length,
         itemBuilder: (ctx, i) {
@@ -277,6 +277,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 44,
@@ -297,30 +298,34 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                       size: 22,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    achievement['title'] ?? '',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                      color: isEarned ? textColor : subColor,
+                  const SizedBox(height: 6),
+                  Flexible(
+                    child: Text(
+                      achievement['title'] ?? '',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                        color: isEarned ? textColor : subColor,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    isEarned ? 'Unlocked' : achievement['desc'] ?? '',
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      color: isEarned
-                          ? catColor
-                          : (isDark ? Colors.white30 : Colors.grey),
+                  Flexible(
+                    child: Text(
+                      isEarned ? 'Unlocked' : achievement['desc'] ?? '',
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        color: isEarned
+                            ? catColor
+                            : (isDark ? Colors.white30 : Colors.grey),
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

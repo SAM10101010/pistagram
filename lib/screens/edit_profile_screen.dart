@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -25,6 +26,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String _accountType = 'public';
   String _selectedCoverColor = '#DD2A7B';
 
+  // Username availability
+  String? _usernameError;
+  bool _checkingUsername = false;
+  Timer? _usernameDebounce;
+  String _originalUsername = '';
+
   static const List<Map<String, dynamic>> _coverColorOptions = [
     {'label': 'Pink', 'hex': '#DD2A7B'},
     {'label': 'Purple', 'hex': '#8134AF'},
@@ -44,6 +51,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     _loadUser();
+    _usernameCtrl.addListener(_onUsernameChanged);
+  }
+
+  void _onUsernameChanged() {
+    _usernameDebounce?.cancel();
+    final username = _usernameCtrl.text.trim().toLowerCase();
+
+    // If same as original, clear any errors
+    if (username == _originalUsername) {
+      setState(() {
+        _usernameError = null;
+        _checkingUsername = false;
+      });
+      return;
+    }
+
+    if (username.isEmpty) {
+      setState(() {
+        _usernameError = 'Username cannot be empty';
+        _checkingUsername = false;
+      });
+      return;
+    }
+
+    if (username.length < 3) {
+      setState(() {
+        _usernameError = 'Username must be at least 3 characters';
+        _checkingUsername = false;
+      });
+      return;
+    }
+
+    setState(() => _checkingUsername = true);
+    _usernameDebounce = Timer(const Duration(milliseconds: 500), () async {
+      final available = await _authService.isUsernameAvailable(username);
+      if (!mounted) return;
+      setState(() {
+        _checkingUsername = false;
+        _usernameError = available ? null : 'Username already taken';
+      });
+    });
   }
 
   Future<void> _loadUser() async {
@@ -53,6 +101,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() {
         _user = user;
         _usernameCtrl.text = user.username;
+        _originalUsername = user.username.toLowerCase();
         _bioCtrl.text = user.bio;
         _accountType = user.accountType;
         _selectedCoverColor = user.coverColor;
@@ -87,11 +136,60 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _save() async {
+    // Check username validity before saving
+    final username = _usernameCtrl.text.trim().toLowerCase();
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Username cannot be empty'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_usernameError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_usernameError!),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_checkingUsername) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Checking username availability...'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // If username changed, do a final availability check
+    if (username != _originalUsername) {
+      final available = await _authService.isUsernameAvailable(username);
+      if (!available) {
+        if (mounted) {
+          setState(() => _usernameError = 'Username already taken');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Username already taken'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     setState(() => _saving = true);
     try {
       final uid = _authService.currentUser!.uid;
       await _profileService.updateProfile(uid, {
-        'username': _usernameCtrl.text.trim(),
+        'username': username,
         'bio': _bioCtrl.text.trim(),
         'accountType': _accountType,
         'coverColor': _selectedCoverColor,
@@ -152,11 +250,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: _saving ? null : _save,
+            onPressed: (_saving || _usernameError != null || _checkingUsername) ? null : _save,
             child: Text(
               'Save',
               style: GoogleFonts.inter(
-                color: accent,
+                color: (_saving || _usernameError != null || _checkingUsername)
+                    ? (isDark ? Colors.white24 : Colors.black26)
+                    : accent,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -236,7 +336,68 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             ),
             const SizedBox(height: 30),
-            _buildField('Username', _usernameCtrl, isDark, accent),
+            // Username field with availability check
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLabel('Username', isDark),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _usernameCtrl,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: isDark
+                        ? Colors.white.withAlpha(10)
+                        : Colors.black.withAlpha(8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                        color: _usernameError != null ? Colors.redAccent : accent,
+                        width: 1.5,
+                      ),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+                    ),
+                    suffixIcon: _checkingUsername
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : _usernameCtrl.text.trim().isNotEmpty &&
+                                _usernameCtrl.text.trim().toLowerCase() != _originalUsername
+                            ? Icon(
+                                _usernameError == null
+                                    ? Icons.check_circle_rounded
+                                    : Icons.cancel_rounded,
+                                color: _usernameError == null
+                                    ? Colors.green
+                                    : Colors.redAccent,
+                              )
+                            : null,
+                    errorText: _usernameError,
+                    errorStyle: GoogleFonts.inter(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             _buildField('Bio', _bioCtrl, isDark, accent, maxLines: 3),
             const SizedBox(height: 24),
@@ -451,6 +612,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   void dispose() {
+    _usernameDebounce?.cancel();
+    _usernameCtrl.removeListener(_onUsernameChanged);
     _usernameCtrl.dispose();
     _bioCtrl.dispose();
     super.dispose();

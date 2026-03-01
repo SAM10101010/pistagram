@@ -137,9 +137,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case 2:
         return const UploadScreen();
       case 3:
-        return const WalletScreen();
+        return WalletScreen(activeTabNotifier: _activeTabNotifier);
       case 4:
-        return const ProfileScreen();
+        return ProfileScreen(activeTabNotifier: _activeTabNotifier);
       default:
         return const SizedBox.shrink();
     }
@@ -149,7 +149,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          // Navigate back to Home tab instead of exiting the app
+          _onTabTapped(0);
+        }
+      },
+      child: Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: List.generate(5, _buildScreen),
@@ -196,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ),
+      ),
       ),
     );
   }

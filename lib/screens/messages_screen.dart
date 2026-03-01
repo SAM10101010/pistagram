@@ -22,9 +22,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
   final Map<String, UserModel> _userCache = {};
 
   Future<UserModel?> _getCachedUser(String uid) async {
-    if (_userCache.containsKey(uid)) return _userCache[uid];
+    if (_userCache.containsKey(uid)) {
+      return _userCache[uid];
+    }
     final u = await _firestore.getUser(uid);
-    if (u != null) _userCache[uid] = u;
+    if (u != null) {
+      _userCache[uid] = u;
+    }
     return u;
   }
 

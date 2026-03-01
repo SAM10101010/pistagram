@@ -37,6 +37,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _hideComments = false;
   bool _allowComments = true;
   String _visibility = 'public';
+  String _collabLabel = '';
 
   @override
   void initState() {
@@ -47,6 +48,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _allowComments = widget.post.allowComments;
     _visibility = widget.post.visibility;
     _checkLikeStatus();
+    _loadCollabLabel();
+  }
+
+  Future<void> _loadCollabLabel() async {
+    if (widget.post.collaborators.isEmpty) return;
+    final names = <String>[];
+    for (final uid in widget.post.collaborators) {
+      if (uid == widget.post.creatorUid) continue;
+      final u = await _firestore.getUser(uid);
+      if (u != null) names.add(u.username);
+    }
+    if (names.isEmpty) return;
+    if (mounted) {
+      setState(() {
+        if (names.length == 1) {
+          _collabLabel = ' & ${names[0]}';
+        } else {
+          _collabLabel = ' & ${names.length} others';
+        }
+      });
+    }
   }
 
   Future<void> _checkLikeStatus() async {
@@ -603,7 +625,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      creator?.username ?? 'user',
+                      '${creator?.username ?? 'user'}$_collabLabel',
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,

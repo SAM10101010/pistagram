@@ -8,6 +8,9 @@ class ReportModel {
   final String reason;
   final String status; // pending, reviewed, actioned
   final DateTime createdAt;
+  final int validVotes;
+  final int invalidVotes;
+  final int totalVotes;
 
   ReportModel({
     required this.id,
@@ -16,6 +19,9 @@ class ReportModel {
     required this.targetId,
     required this.reason,
     this.status = 'pending',
+    this.validVotes = 0,
+    this.invalidVotes = 0,
+    this.totalVotes = 0,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -28,6 +34,9 @@ class ReportModel {
       reason: map['reason'] ?? '',
       status: map['status'] ?? 'pending',
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      validVotes: map['validVotes'] ?? 0,
+      invalidVotes: map['invalidVotes'] ?? 0,
+      totalVotes: map['totalVotes'] ?? 0,
     );
   }
 
@@ -40,6 +49,9 @@ class ReportModel {
       'reason': reason,
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
+      'validVotes': validVotes,
+      'invalidVotes': invalidVotes,
+      'totalVotes': totalVotes,
     };
   }
 }

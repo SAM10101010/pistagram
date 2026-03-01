@@ -1,89 +1,78 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/relationship_score_model.dart';
 
 class RelationshipService {
-  final _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  String _getDocId(String userA, String userB) {
-    final sorted = [userA, userB]..sort();
-    return '${sorted[0]}_${sorted[1]}';
+  Future<Map<String, dynamic>> getRelationshipStrength(String uid1, String uid2) async {
+    // Count mutual interactions
+    int likeScore = 0;
+    int commentScore = 0;
+    int messageScore = 0;
+
+    // Likes from uid1 on uid2's reels
+    final uid2Reels = await _db.collection('reels')
+        .where('creatorUid', isEqualTo: uid2)
+        .limit(50).get();
+    for (final reel in uid2Reels.docs) {
+      final liked = await _db.collection('likes')
+          .doc('${uid1}_${reel.id}').get();
+      if (liked.exists) likeScore++;
+    }
+
+    // Comments from uid1 on uid2's reels
+    final comments = await _db.collection('comments')
+        .where('uid', isEqualTo: uid1)
+        .limit(100).get();
+    for (final c in comments.docs) {
+      final reelId = c.data()['reelId'] ?? '';
+      final reelDoc = await _db.collection('reels').doc(reelId).get();
+      if (reelDoc.exists && reelDoc.data()?['creatorUid'] == uid2) {
+        commentScore++;
+      }
+    }
+
+    // Messages between them
+    final participants = [uid1, uid2]..sort();
+    final chatId = '${participants[0]}_${participants[1]}';
+    final chatDoc = await _db.collection('chats').doc(chatId).get();
+    if (chatDoc.exists) messageScore = 10;
+
+    double total = (likeScore * 1.0 + commentScore * 3.0 + messageScore * 2.0);
+    String label = 'Acquaintance';
+    if (total >= 30) {
+      label = 'Strong Connection';
+    } else if (total >= 15) {
+      label = 'Frequent Interactor';
+    }
+
+    return {
+      'totalScore': total,
+      'label': label,
+      'likeScore': likeScore,
+      'commentScore': commentScore,
+      'messageScore': messageScore,
+    };
   }
 
-  Future<void> _incrementField(String userA, String userB, String field) async {
-    final docId = _getDocId(userA, userB);
-    final sorted = [userA, userB]..sort();
-    final ref = _firestore.collection('relationshipScores').doc(docId);
+  Future<List<Map<String, dynamic>>> getStrongConnections(String uid) async {
+    final followsSnap = await _db.collection('follows')
+        .where('followerId', isEqualTo: uid)
+        .where('status', isEqualTo: 'accepted')
+        .limit(50).get();
 
-    await ref.set({
-      'id': docId,
-      'userA': sorted[0],
-      'userB': sorted[1],
-      field: FieldValue.increment(1),
-      'lastUpdated': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    await _recalculateScore(docId);
-  }
-
-  Future<void> _recalculateScore(String docId) async {
-    final ref = _firestore.collection('relationshipScores').doc(docId);
-    final doc = await ref.get();
-    if (!doc.exists) return;
-
-    final data = doc.data()!;
-    final comments = (data['commentsExchanged'] as int? ?? 0);
-    final shares = (data['reelSharesExchanged'] as int? ?? 0);
-    final likes = (data['mutualLikes'] as int? ?? 0);
-    final dms = (data['dmCount'] as int? ?? 0);
-
-    final score = (comments * 3) + (shares * 5) + (likes * 2) + (dms * 1);
-    await ref.update({'score': score.toDouble()});
-  }
-
-  Future<void> onCommentExchange(String userA, String userB) async {
-    await _incrementField(userA, userB, 'commentsExchanged');
-  }
-
-  Future<void> onReelShare(String fromUser, String toUser) async {
-    await _incrementField(fromUser, toUser, 'reelSharesExchanged');
-  }
-
-  Future<void> onMutualLike(String userA, String userB) async {
-    await _incrementField(userA, userB, 'mutualLikes');
-  }
-
-  Future<void> onDMSent(String fromUser, String toUser) async {
-    await _incrementField(fromUser, toUser, 'dmCount');
-  }
-
-  Future<RelationshipScoreModel?> getRelationship(String userA, String userB) async {
-    final docId = _getDocId(userA, userB);
-    final doc = await _firestore.collection('relationshipScores').doc(docId).get();
-    if (!doc.exists) return null;
-    return RelationshipScoreModel.fromMap(doc.data()!);
-  }
-
-  Future<List<RelationshipScoreModel>> getTopRelationships(String userId, {int limit = 10}) async {
-    final asA = await _firestore
-        .collection('relationshipScores')
-        .where('userA', isEqualTo: userId)
-        .orderBy('score', descending: true)
-        .limit(limit)
-        .get();
-
-    final asB = await _firestore
-        .collection('relationshipScores')
-        .where('userB', isEqualTo: userId)
-        .orderBy('score', descending: true)
-        .limit(limit)
-        .get();
-
-    final all = [
-      ...asA.docs.map((d) => RelationshipScoreModel.fromMap(d.data())),
-      ...asB.docs.map((d) => RelationshipScoreModel.fromMap(d.data())),
-    ];
-
-    all.sort((a, b) => b.score.compareTo(a.score));
-    return all.take(limit).toList();
+    final connections = <Map<String, dynamic>>[];
+    for (final follow in followsSnap.docs) {
+      final targetUid = follow.data()['followingId'] ?? '';
+      if (targetUid.isEmpty) continue;
+      final strength = await getRelationshipStrength(uid, targetUid);
+      if ((strength['totalScore'] as double) >= 15) {
+        connections.add({
+          'uid': targetUid,
+          ...strength,
+        });
+      }
+    }
+    connections.sort((a, b) => (b['totalScore'] as double).compareTo(a['totalScore'] as double));
+    return connections;
   }
 }
