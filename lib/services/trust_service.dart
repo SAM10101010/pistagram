@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'account_health_service.dart';
 
 class TrustService {
   final _firestore = FirebaseFirestore.instance;
+  final _healthService = AccountHealthService();
 
   Future<double> calculateTrustScore(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
@@ -45,6 +47,8 @@ class TrustService {
     });
     await batch.commit();
     await calculateTrustScore(reporterId);
+    await _healthService.recalculateAndStore(reporterId,
+        component: 'trust', reason: 'Report filed');
   }
 
   Future<void> onReportReceived(String userId, bool wasValid) async {
@@ -52,6 +56,8 @@ class TrustService {
       'reportsReceived': FieldValue.increment(1),
     });
     await calculateTrustScore(userId);
+    await _healthService.recalculateAndStore(userId,
+        component: 'reports', reason: 'Report received');
   }
 
   Future<void> onSpamDetected(String userId) async {
@@ -59,6 +65,8 @@ class TrustService {
       'spamDetectionFlags': FieldValue.increment(1),
     });
     await calculateTrustScore(userId);
+    await _healthService.recalculateAndStore(userId,
+        component: 'spam', reason: 'Spam detected');
   }
 
   bool shouldHighlightComment(double trustScore) => trustScore > 80;

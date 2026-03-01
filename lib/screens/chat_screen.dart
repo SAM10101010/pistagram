@@ -24,6 +24,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _messagingService = MessagingService();
   final _authService = AuthService();
   final _cloudinary = CloudinaryService();
+  final _firestoreService = FirestoreService();
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _picker = ImagePicker();
@@ -31,6 +32,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _showEmojiPanel = false;
   bool _uploading = false;
   String? _editingMessageId;
+  bool _isBlocked = false;
 
   static const _emojis = [
     '😀',
@@ -75,24 +77,50 @@ class _ChatScreenState extends State<ChatScreen> {
     '🤮',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _checkBlocked();
+  }
+
+  Future<void> _checkBlocked() async {
+    final uid = _authService.currentUser?.uid ?? '';
+    if (widget.partner != null && uid.isNotEmpty) {
+      final blocked =
+          await _firestoreService.isBlockedByEither(uid, widget.partner!.uid);
+      if (mounted) setState(() => _isBlocked = blocked);
+    }
+  }
+
   Future<void> _send() async {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
     _msgCtrl.clear();
 
-    if (_editingMessageId != null) {
-      await _messagingService.editMessage(
-        widget.chatId,
-        _editingMessageId!,
-        text,
-      );
-      setState(() => _editingMessageId = null);
-    } else {
-      await _messagingService.sendMessage(
-        chatId: widget.chatId,
-        senderUid: _authService.currentUser?.uid ?? '',
-        text: text,
-      );
+    try {
+      if (_editingMessageId != null) {
+        await _messagingService.editMessage(
+          widget.chatId,
+          _editingMessageId!,
+          text,
+        );
+        setState(() => _editingMessageId = null);
+      } else {
+        await _messagingService.sendMessage(
+          chatId: widget.chatId,
+          senderUid: _authService.currentUser?.uid ?? '',
+          text: text,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -265,9 +293,14 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [accent, accent.withAlpha(150)],
-                ),
+                gradient: _isBlocked
+                    ? null
+                    : LinearGradient(
+                        colors: [accent, accent.withAlpha(150)],
+                      ),
+                color: _isBlocked
+                    ? (isDark ? Colors.white.withAlpha(15) : Colors.grey[300])
+                    : null,
               ),
               child: CircleAvatar(
                 radius: 18,
@@ -275,21 +308,27 @@ class _ChatScreenState extends State<ChatScreen> {
                     ? const Color(0xFF0D0D0D)
                     : Colors.white,
                 backgroundImage:
+                    !_isBlocked &&
                     widget.partner?.profilePicUrl.isNotEmpty == true
                     ? CachedNetworkImageProvider(widget.partner!.profilePicUrl)
                     : null,
-                child: widget.partner?.profilePicUrl.isEmpty != false
+                child: _isBlocked ||
+                    widget.partner?.profilePicUrl.isEmpty != false
                     ? Icon(
-                        Icons.person,
+                        _isBlocked ? Icons.block : Icons.person,
                         size: 16,
-                        color: isDark ? Colors.white38 : Colors.black26,
+                        color: _isBlocked
+                            ? Colors.redAccent.withAlpha(150)
+                            : (isDark ? Colors.white38 : Colors.black26),
                       )
                     : null,
               ),
             ),
             const SizedBox(width: 10),
             Text(
-              '@${widget.partner?.username ?? ''}',
+              _isBlocked
+                  ? 'Blocked Account'
+                  : '@${widget.partner?.username ?? ''}',
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
@@ -427,6 +466,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           ? const Color(0xFF252540)
                                           : Colors.grey[200],
                                       backgroundImage:
+                                          !_isBlocked &&
                                           widget
                                                   .partner
                                                   ?.profilePicUrl
@@ -437,17 +477,20 @@ class _ChatScreenState extends State<ChatScreen> {
                                             )
                                           : null,
                                       child:
+                                          _isBlocked ||
                                           widget
                                                   .partner
                                                   ?.profilePicUrl
                                                   .isEmpty !=
                                               false
                                           ? Icon(
-                                              Icons.person,
+                                              _isBlocked ? Icons.block : Icons.person,
                                               size: 12,
-                                              color: isDark
-                                                  ? Colors.white38
-                                                  : Colors.black26,
+                                              color: _isBlocked
+                                                  ? Colors.redAccent.withAlpha(150)
+                                                  : (isDark
+                                                      ? Colors.white38
+                                                      : Colors.black26),
                                             )
                                           : null,
                                     )
@@ -464,6 +507,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     : CrossAxisAlignment.start,
                                 children: [
                                   if (showAvatar &&
+                                      !_isBlocked &&
                                       widget.partner?.username != null)
                                     Padding(
                                       padding: const EdgeInsets.only(
@@ -501,7 +545,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           // Emoji panel
-          if (_showEmojiPanel)
+          if (_showEmojiPanel && !_isBlocked)
             Container(
               height: 200,
               decoration: BoxDecoration(
@@ -533,6 +577,40 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
+          if (_isBlocked)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withAlpha(15)
+                        : Colors.black.withAlpha(15),
+                  ),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.block_rounded,
+                    color: Colors.redAccent.withAlpha(150),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'You can\'t send messages anymore',
+                    style: GoogleFonts.inter(
+                      color: isDark ? Colors.white38 : Colors.black38,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
           SafeArea(
             top: false,
             bottom: false,

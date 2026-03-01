@@ -13,6 +13,9 @@ import '../models/report_model.dart';
 import '../models/block_model.dart';
 import '../models/story_reaction_model.dart';
 import '../models/point_transfer_model.dart';
+import '../models/group_chat_model.dart';
+import '../models/group_message_model.dart';
+import '../models/group_invite_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -54,6 +57,10 @@ class FirestoreService {
       _db.collection('pointTransfers');
   CollectionReference<Map<String, dynamic>> get _vaultReels =>
       _db.collection('vaultReels');
+  CollectionReference<Map<String, dynamic>> get _groupChats =>
+      _db.collection('groupChats');
+  CollectionReference<Map<String, dynamic>> get _groupInvitations =>
+      _db.collection('groupInvitations');
 
   // ═══════════════════════════════════════
   // USERS
@@ -674,6 +681,165 @@ class FirestoreService {
     if (lastMsg.docs.isNotEmpty && lastMsg.docs.first.id == messageId) {
       await _chats.doc(chatId).update({'lastMessage': newText});
     }
+  }
+
+  // ═══════════════════════════════════════
+  // GROUP CHATS
+  // ═══════════════════════════════════════
+  Future<void> createGroupChat(GroupChatModel group) async {
+    await _groupChats.doc(group.id).set(group.toMap());
+  }
+
+  Future<GroupChatModel?> getGroupChat(String groupId) async {
+    final doc = await _groupChats.doc(groupId).get();
+    if (!doc.exists) return null;
+    return GroupChatModel.fromMap(doc.data()!);
+  }
+
+  Stream<GroupChatModel?> groupChatStream(String groupId) {
+    return _groupChats.doc(groupId).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return GroupChatModel.fromMap(snap.data()!);
+    });
+  }
+
+  Stream<List<GroupChatModel>> getUserGroupChats(String uid) {
+    return _groupChats
+        .where('members', arrayContains: uid)
+        .where('status', isEqualTo: 'active')
+        .orderBy('lastMessageAt', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => GroupChatModel.fromMap(d.data())).toList());
+  }
+
+  Future<void> updateGroupChat(
+      String groupId, Map<String, dynamic> data) async {
+    await _groupChats.doc(groupId).update(data);
+  }
+
+  Future<void> sendGroupMessage(GroupMessageModel message) async {
+    final batch = _db.batch();
+    batch.set(
+      _groupChats
+          .doc(message.groupId)
+          .collection('messages')
+          .doc(message.id),
+      message.toMap(),
+    );
+    batch.update(_groupChats.doc(message.groupId), {
+      'lastMessage': message.text.isNotEmpty ? message.text : '📷 Media',
+      'lastSenderUid': message.senderUid,
+      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
+      'lastActivityAt': Timestamp.fromDate(DateTime.now()),
+      'messageCount': FieldValue.increment(1),
+    });
+    await batch.commit();
+  }
+
+  Stream<List<GroupMessageModel>> getGroupMessages(String groupId) {
+    return _groupChats
+        .doc(groupId)
+        .collection('messages')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => GroupMessageModel.fromMap(d.data())).toList());
+  }
+
+  Future<void> deleteGroupMessage(String groupId, String messageId) async {
+    await _groupChats
+        .doc(groupId)
+        .collection('messages')
+        .doc(messageId)
+        .delete();
+  }
+
+  Future<void> updateGroupMessage(
+      String groupId, String messageId, String newText) async {
+    await _groupChats
+        .doc(groupId)
+        .collection('messages')
+        .doc(messageId)
+        .update({
+      'text': newText,
+      'isEdited': true,
+    });
+    final lastMsg = await _groupChats
+        .doc(groupId)
+        .collection('messages')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+    if (lastMsg.docs.isNotEmpty && lastMsg.docs.first.id == messageId) {
+      await _groupChats.doc(groupId).update({'lastMessage': newText});
+    }
+  }
+
+  Future<void> addGroupMember(String groupId, String uid) async {
+    await _groupChats.doc(groupId).update({
+      'members': FieldValue.arrayUnion([uid]),
+      'memberCount': FieldValue.increment(1),
+    });
+  }
+
+  Future<void> removeGroupMember(String groupId, String uid) async {
+    await _groupChats.doc(groupId).update({
+      'members': FieldValue.arrayRemove([uid]),
+      'admins': FieldValue.arrayRemove([uid]),
+      'memberCount': FieldValue.increment(-1),
+    });
+  }
+
+  Future<void> addGroupAdmin(String groupId, String uid) async {
+    await _groupChats.doc(groupId).update({
+      'admins': FieldValue.arrayUnion([uid]),
+    });
+  }
+
+  Future<void> removeGroupAdmin(String groupId, String uid) async {
+    await _groupChats.doc(groupId).update({
+      'admins': FieldValue.arrayRemove([uid]),
+    });
+  }
+
+  // ═══════════════════════════════════════
+  // GROUP INVITATIONS
+  // ═══════════════════════════════════════
+  Future<void> createGroupInvitation(GroupInviteModel invite) async {
+    await _groupInvitations.doc(invite.id).set(invite.toMap());
+  }
+
+  Future<GroupInviteModel?> getGroupInvitation(String inviteId) async {
+    final doc = await _groupInvitations.doc(inviteId).get();
+    if (!doc.exists) return null;
+    return GroupInviteModel.fromMap(doc.data()!);
+  }
+
+  Stream<List<GroupInviteModel>> getPendingGroupInvitations(String uid) {
+    return _groupInvitations
+        .where('inviteeUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => GroupInviteModel.fromMap(d.data())).toList());
+  }
+
+  Future<void> updateGroupInvitationStatus(
+      String inviteId, String status) async {
+    await _groupInvitations.doc(inviteId).update({'status': status});
+  }
+
+  Future<bool> hasPendingGroupInvite(
+      String groupId, String inviteeUid) async {
+    final snap = await _groupInvitations
+        .where('groupId', isEqualTo: groupId)
+        .where('inviteeUid', isEqualTo: inviteeUid)
+        .where('status', isEqualTo: 'pending')
+        .limit(1)
+        .get();
+    return snap.docs.isNotEmpty;
   }
 
   // ═══════════════════════════════════════

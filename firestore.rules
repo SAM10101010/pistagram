@@ -24,6 +24,14 @@ service cloud.firestore {
       allow create: if isOwner(uid);
       allow update: if isAuth();
       allow delete: if false;
+
+      // ── Health History (subcollection) ──
+      match /healthHistory/{historyId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if false;
+        allow delete: if false;
+      }
     }
 
     // ── Reels ──
@@ -123,6 +131,29 @@ service cloud.firestore {
       }
     }
 
+    // ── Group Chats ──
+    match /groupChats/{groupId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if isAuth();
+        allow delete: if isAuth();
+      }
+    }
+
+    // ── Group Invitations ──
+    match /groupInvitations/{inviteId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAdmin();
+    }
+
     // ── Rewards ──
     match /rewards/{rewardId} {
       allow read: if isAuth();
@@ -150,6 +181,22 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth();
       allow delete: if isAuth();
+    }
+
+    // ── Warnings ──
+    match /warnings/{warningId} {
+      allow read: if isAuth();
+      allow create: if isAdmin();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── Appeals ──
+    match /appeals/{appealId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if false;
     }
 
     // ── Fraud Flags ──

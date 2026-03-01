@@ -44,6 +44,20 @@ class MessagingService {
     String sharedContentId = '',
     String sharedThumbnail = '',
   }) async {
+    // Check blocks before sending
+    final chat = await _firestoreService.getChat(chatId);
+    if (chat != null) {
+      final otherUid = chat.participants.firstWhere(
+        (p) => p != senderUid,
+        orElse: () => '',
+      );
+      if (otherUid.isNotEmpty) {
+        if (await _firestoreService.isBlockedByEither(senderUid, otherUid)) {
+          throw Exception('Cannot message this user');
+        }
+      }
+    }
+
     final message = MessageModel(
       id: _uuid.v4(),
       chatId: chatId,
@@ -57,7 +71,6 @@ class MessagingService {
     await _firestoreService.sendMessage(message);
 
     // Create notification for the receiver (use stable ID per chat to avoid spam)
-    final chat = await _firestoreService.getChat(chatId);
     if (chat != null) {
       final receiverUid = chat.participants.firstWhere(
         (p) => p != senderUid,

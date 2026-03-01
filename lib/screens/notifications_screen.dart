@@ -8,9 +8,11 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/follow_service.dart';
 import '../services/collab_service.dart';
+import '../services/group_chat_service.dart';
 import '../utils/animations.dart';
 import 'profile_screen.dart';
 import 'follow_requests_screen.dart';
+import 'group_chat_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -24,9 +26,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final _firestore = FirestoreService();
   final _followService = FollowService();
   final _collabService = CollabService();
+  final _groupService = GroupChatService();
   final Map<String, UserModel> _userCache = {};
   final Set<String> _handledRequestIds = {};
   final Set<String> _handledCollabIds = {};
+  final Set<String> _handledGroupInviteIds = {};
 
   Future<UserModel?> _getCachedUser(String uid) async {
     if (_userCache.containsKey(uid)) {
@@ -316,6 +320,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           case 'collab_rejected':
             icon = Icons.person_remove_rounded;
             break;
+          case 'group_invite':
+            icon = Icons.group_add_rounded;
+            break;
+          case 'group_added':
+            icon = Icons.groups_rounded;
+            break;
           default:
             icon = Icons.notifications;
         }
@@ -361,6 +371,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           case 'collab_rejected':
             iconAccent = Colors.redAccent;
             break;
+          case 'group_invite':
+            iconAccent = Colors.indigo;
+            break;
+          case 'group_added':
+            iconAccent = Colors.teal;
+            break;
           default:
             iconAccent = accent;
         }
@@ -391,7 +407,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               borderRadius: BorderRadius.circular(14),
               onTap: () {
                 if (!notif.read) _firestore.markNotificationRead(notif.id);
-                if (notif.fromUid.isNotEmpty) {
+                if (notif.type == 'group_added' && notif.groupId.isNotEmpty) {
+                  Navigator.push(
+                    context,
+                    SlideRightRoute(
+                      page: GroupChatScreen(groupId: notif.groupId),
+                    ),
+                  );
+                } else if (notif.fromUid.isNotEmpty) {
                   Navigator.push(
                     context,
                     SlideRightRoute(page: ProfileScreen(userId: notif.fromUid)),
@@ -496,6 +519,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
                         child: _buildCollabInviteButtons(
+                          notif,
+                          accent,
+                          isDark,
+                        ),
+                      ),
+                    if (notif.type == 'group_invite' && !_handledGroupInviteIds.contains(notif.id))
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _buildGroupInviteButtons(
                           notif,
                           accent,
                           isDark,
@@ -687,6 +719,87 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               await _collabService.rejectInvite(notif.id);
               await _firestore.markNotificationRead(notif.id);
               if (mounted) setState(() => _handledCollabIds.add(notif.id));
+            },
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: subColor.withAlpha(80)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            child: Text(
+              'Decline',
+              style: GoogleFonts.inter(fontSize: 11, color: subColor),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGroupInviteButtons(
+    NotificationModel notif,
+    Color accent,
+    bool isDark,
+  ) {
+    final subColor = isDark ? Colors.white54 : Colors.black54;
+    // Extract invite ID from notification ID (format: group_invite_{inviteId})
+    final inviteId = notif.id.replaceFirst('group_invite_', '');
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 30,
+          child: ElevatedButton(
+            onPressed: () async {
+              await _groupService.acceptInvitation(inviteId);
+              await _firestore.markNotificationRead(notif.id);
+              if (mounted) {
+                setState(() => _handledGroupInviteIds.add(notif.id));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Joined the group!'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+                if (notif.groupId.isNotEmpty) {
+                  Navigator.push(
+                    context,
+                    SlideRightRoute(
+                      page: GroupChatScreen(groupId: notif.groupId),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(
+              'Accept',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          height: 30,
+          child: OutlinedButton(
+            onPressed: () async {
+              await _groupService.declineInvitation(inviteId);
+              await _firestore.markNotificationRead(notif.id);
+              if (mounted) setState(() => _handledGroupInviteIds.add(notif.id));
             },
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: subColor.withAlpha(80)),

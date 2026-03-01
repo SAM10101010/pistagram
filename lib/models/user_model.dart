@@ -54,6 +54,19 @@ class UserModel {
   final double reachMultiplier;
   // Relationship strength
   final Map<String, dynamic> interactionScores;
+  // Account Health Score
+  final double healthScore;
+  final String healthLevel; // green, yellow, red
+  final bool healthLockedByAdmin;
+  // Warning & Discipline
+  final int warningCount;
+  final int activeWarningLevel;
+  final DateTime? lastWarningAt;
+  final List<String> activeRestrictionTypes;
+  final DateTime? restrictedUntil;
+  final int violationCount;
+  final int disciplineLevel; // 0-4
+  final DateTime? lastViolationAt;
 
   UserModel({
     required this.uid,
@@ -102,7 +115,19 @@ class UserModel {
     this.shadowBanned = false,
     this.reachMultiplier = 1.0,
     Map<String, dynamic>? interactionScores,
-  }) : privacySettings =
+    this.healthScore = 75.0,
+    this.healthLevel = 'green',
+    this.healthLockedByAdmin = false,
+    this.warningCount = 0,
+    this.activeWarningLevel = 0,
+    this.lastWarningAt,
+    List<String>? activeRestrictionTypes,
+    this.restrictedUntil,
+    this.violationCount = 0,
+    this.disciplineLevel = 0,
+    this.lastViolationAt,
+  }) : activeRestrictionTypes = activeRestrictionTypes ?? [],
+       privacySettings =
            privacySettings ??
            {
              'hideFollowers': false,
@@ -178,6 +203,17 @@ class UserModel {
       shadowBanned: map['shadowBanned'] ?? false,
       reachMultiplier: (map['reachMultiplier'] ?? 1.0).toDouble(),
       interactionScores: Map<String, dynamic>.from(map['interactionScores'] ?? {}),
+      healthScore: (map['healthScore'] ?? 75.0).toDouble(),
+      healthLevel: map['healthLevel'] ?? 'green',
+      healthLockedByAdmin: map['healthLockedByAdmin'] ?? false,
+      warningCount: map['warningCount'] ?? 0,
+      activeWarningLevel: map['activeWarningLevel'] ?? 0,
+      lastWarningAt: (map['lastWarningAt'] as Timestamp?)?.toDate(),
+      activeRestrictionTypes: List<String>.from(map['activeRestrictionTypes'] ?? []),
+      restrictedUntil: (map['restrictedUntil'] as Timestamp?)?.toDate(),
+      violationCount: map['violationCount'] ?? 0,
+      disciplineLevel: map['disciplineLevel'] ?? 0,
+      lastViolationAt: (map['lastViolationAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -233,6 +269,23 @@ class UserModel {
       'shadowBanned': shadowBanned,
       'reachMultiplier': reachMultiplier,
       'interactionScores': interactionScores,
+      'healthScore': healthScore,
+      'healthLevel': healthLevel,
+      'healthLockedByAdmin': healthLockedByAdmin,
+      'warningCount': warningCount,
+      'activeWarningLevel': activeWarningLevel,
+      'lastWarningAt': lastWarningAt != null
+          ? Timestamp.fromDate(lastWarningAt!)
+          : null,
+      'activeRestrictionTypes': activeRestrictionTypes,
+      'restrictedUntil': restrictedUntil != null
+          ? Timestamp.fromDate(restrictedUntil!)
+          : null,
+      'violationCount': violationCount,
+      'disciplineLevel': disciplineLevel,
+      'lastViolationAt': lastViolationAt != null
+          ? Timestamp.fromDate(lastViolationAt!)
+          : null,
     };
   }
 
@@ -283,6 +336,17 @@ class UserModel {
     bool? shadowBanned,
     double? reachMultiplier,
     Map<String, dynamic>? interactionScores,
+    double? healthScore,
+    String? healthLevel,
+    bool? healthLockedByAdmin,
+    int? warningCount,
+    int? activeWarningLevel,
+    DateTime? lastWarningAt,
+    List<String>? activeRestrictionTypes,
+    DateTime? restrictedUntil,
+    int? violationCount,
+    int? disciplineLevel,
+    DateTime? lastViolationAt,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -331,6 +395,17 @@ class UserModel {
       shadowBanned: shadowBanned ?? this.shadowBanned,
       reachMultiplier: reachMultiplier ?? this.reachMultiplier,
       interactionScores: interactionScores ?? this.interactionScores,
+      healthScore: healthScore ?? this.healthScore,
+      healthLevel: healthLevel ?? this.healthLevel,
+      healthLockedByAdmin: healthLockedByAdmin ?? this.healthLockedByAdmin,
+      warningCount: warningCount ?? this.warningCount,
+      activeWarningLevel: activeWarningLevel ?? this.activeWarningLevel,
+      lastWarningAt: lastWarningAt ?? this.lastWarningAt,
+      activeRestrictionTypes: activeRestrictionTypes ?? this.activeRestrictionTypes,
+      restrictedUntil: restrictedUntil ?? this.restrictedUntil,
+      violationCount: violationCount ?? this.violationCount,
+      disciplineLevel: disciplineLevel ?? this.disciplineLevel,
+      lastViolationAt: lastViolationAt ?? this.lastViolationAt,
     );
   }
 }

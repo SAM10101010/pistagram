@@ -43,6 +43,7 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
   int _currentIndex = 0;
   bool _showPointsPopup = false;
   int _earnedPoints = 0;
+  int _totalPoints = 0;
   int _selectedTab = 1;
 
   List<ReelModel> _reels = [];
@@ -127,37 +128,29 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       if (cachedSaved != null) _savedIds.addAll(cachedSaved.cast<String>());
 
       _reels = await _firestore.getPublicReels(limit: 20);
-      await _pointsService.getPoints(uid: uid);
-      _completedReels = await _pointsService.getCompletedReels(uid: uid);
+      _totalPoints = await _pointsService.getPoints(uid: uid);
+      _completedReels = await _pointsService.getCompletedReels();
 
       // Get following IDs for follow button state
       final followingUids = await _firestore.getFollowingUids(uid);
       _followingIds = followingUids.toSet();
 
-      // Pre-cache creators, collaborators, like/save states
+      // Pre-cache creators, like/save states
       for (final reel in _reels) {
         if (!_creatorCache.containsKey(reel.creatorUid)) {
           final u = await _firestore.getUser(reel.creatorUid);
           if (u != null) _creatorCache[reel.creatorUid] = u;
-        }
-        // Pre-cache collaborator usernames
-        for (final collabUid in reel.collaborators) {
-          if (!_creatorCache.containsKey(collabUid)) {
-            final u = await _firestore.getUser(collabUid);
-            if (u != null) _creatorCache[collabUid] = u;
-          }
         }
         if (await _firestore.hasLikedReel(uid, reel.reelId)) _likedIds.add(reel.reelId);
         if (await _firestore.hasSavedReel(uid, reel.reelId)) _savedIds.add(reel.reelId);
         if (await _firestore.isInVault(uid, reel.reelId)) _vaultIds.add(reel.reelId);
       }
 
-      // Init video controllers — preload up to 4 reels ahead
+      // Init video controllers
       _controllers = List.filled(_reels.length, null);
       _trackers = List.filled(_reels.length, null);
-      for (int i = 0; i < _reels.length && i < 4; i++) {
-        _initController(i);
-      }
+      if (_reels.isNotEmpty) _initController(0);
+      if (_reels.length > 1) _initController(1);
 
       // Persist liked/saved to cache
       cache.setData('likedReelIds_$uid', _likedIds.toList());
@@ -223,24 +216,18 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
   Future<void> _onReelCompleted(String reelId) async {
     if (_completedReels.contains(reelId)) return;
 
-    final uid = _authService.currentUser?.uid;
-
-    // Double-check with Firestore to prevent earning twice
-    if (uid != null) {
-      final alreadyRewarded = await _pointsService.isReelCompleted(reelId, uid: uid);
-      if (alreadyRewarded) {
-        _completedReels.add(reelId);
-        return;
-      }
-    }
-
     final points = PointsService.generateRandomPoints();
-    await _pointsService.markReelCompleted(reelId, uid: uid);
-    await _pointsService.addPoints(points, uid: uid, reelId: reelId);
+    await _pointsService.markReelCompleted(reelId);
+    final result = await _pointsService.addPoints(points);
+    _totalPoints = (result['newTotal'] as int?) ?? 0;
     _completedReels.add(reelId);
 
-    // Gamification integrations (fire-and-forget)
+    // Update user's points balance in Firestore
+    final uid = _authService.currentUser?.uid;
     if (uid != null) {
+      await _firestore.updatePointsBalance(uid, _totalPoints);
+
+      // Gamification integrations (fire-and-forget)
       _streakService.onReelCompleted(uid).catchError((_) => null);
       _reactionRewardService.onReelWatched(uid, reelId, points).catchError((_) {});
       _seriesService.onReelWatched(uid, reelId).catchError((_) => null);
@@ -272,13 +259,10 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       AudioPlaybackService.instance.stop();
     }
 
-    // Preload up to 3 reels ahead for smooth scrolling
-    for (int i = 1; i <= 3; i++) {
-      if (index + i < _reels.length) _initController(index + i);
-    }
+    if (index + 1 < _reels.length) _initController(index + 1);
 
     for (int i = 0; i < _controllers.length; i++) {
-      if ((i - index).abs() > 4 && _controllers[i] != null) {
+      if ((i - index).abs() > 2 && _controllers[i] != null) {
         _trackers[i]?.dispose();
         _trackers[i] = null;
         _controllers[i]?.dispose();
@@ -393,20 +377,6 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
       }
     }
     if (mounted) setState(() {});
-  }
-
-  /// Build display label showing creator + collaborators (e.g. "alice & bob")
-  String _buildCreatorLabel(ReelModel reel) {
-    final creatorName = _creatorCache[reel.creatorUid]?.username ?? 'unknown';
-    if (reel.collaborators.isEmpty) return creatorName;
-    final collabNames = reel.collaborators
-        .where((uid) => uid != reel.creatorUid)
-        .map((uid) => _creatorCache[uid]?.username ?? 'unknown')
-        .where((name) => name != 'unknown')
-        .toList();
-    if (collabNames.isEmpty) return creatorName;
-    if (collabNames.length == 1) return '$creatorName & ${collabNames[0]}';
-    return '$creatorName & ${collabNames.length} others';
   }
 
   Future<void> _toggleFollow(String targetUid) async {
@@ -937,10 +907,8 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
                     ),
                     const SizedBox(width: 10),
                     Flexible(
-                      child: Text(
-                        _buildCreatorLabel(reel),
-                        style: GoogleFonts.inter(
-                          color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                      child: Text(creator?.username ?? 'unknown', style: GoogleFonts.inter(
+                        color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     if (!isOwn && !isFollowing) ...[
@@ -1018,13 +986,6 @@ class _ReelsScreenState extends State<ReelsScreen> with AutomaticKeepAliveClient
                 label: 'Save',
                 color: isSaved ? accent : Colors.white,
                 onTap: () => _toggleSave(index),
-              ),
-              const SizedBox(height: 18),
-              _buildActionBtn(
-                icon: _vaultIds.contains(reel.reelId) ? Icons.lock_rounded : Icons.lock_outline,
-                label: 'Vault',
-                color: _vaultIds.contains(reel.reelId) ? Colors.orangeAccent : Colors.white,
-                onTap: () => _toggleVault(index),
               ),
               const SizedBox(height: 18),
               _buildActionBtn(

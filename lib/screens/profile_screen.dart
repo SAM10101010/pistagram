@@ -12,6 +12,7 @@ import '../models/follow_model.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../services/follow_service.dart';
+import '../services/messaging_service.dart';
 import '../services/achievement_service.dart';
 import '../services/account_manager_service.dart';
 import '../widgets/level_badge.dart';
@@ -61,6 +62,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isFollowing = false;
   String _followStatus = 'none'; // none, pending, accepted
   bool _isOwn = true;
+  bool _isBlocked = false; // true if current user has blocked this profile
+  bool _isBlockedByThem = false; // true if this profile has blocked current user
   List<Map<String, dynamic>> _earnedAchievements = [];
   List<StoryModel> _profileStories = [];
   int _pendingRequestsCount = 0;
@@ -185,6 +188,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           _followStatus = follow.status;
           _isFollowing = follow.status == 'accepted';
         }
+
+        // Check block status
+        final myUid = _authService.currentUser?.uid ?? '';
+        _isBlocked = await _firestore.isBlocked(myUid, uid);
+        _isBlockedByThem = await _firestore.isBlocked(uid, myUid);
       }
 
       // Cache the profile for next time
@@ -363,14 +371,26 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openChat() async {
     final myUid = _authService.currentUser?.uid ?? '';
     final targetUid = widget.userId ?? '';
-    final chat = await _firestore.getOrCreateChat(myUid, targetUid);
-    if (mounted) {
-      Navigator.push(
-        context,
-        SlideRightRoute(
-          page: ChatScreen(chatId: chat.chatId, partner: _user),
-        ),
-      );
+    try {
+      final messagingService = MessagingService();
+      final chat = await messagingService.getOrCreateChat(myUid, targetUid);
+      if (mounted) {
+        Navigator.push(
+          context,
+          SlideRightRoute(
+            page: ChatScreen(chatId: chat.chatId, partner: _user),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -460,37 +480,79 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       );
     } else if (action == 'block') {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Block @${_user?.username ?? 'user'}?'),
-          content: const Text(
-            'They won\'t be able to see your profile, reels, or send you messages. You will also unfollow each other.',
+      if (_isBlocked) {
+        // Unblock
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Unblock @${_user?.username ?? 'user'}?'),
+            content: const Text(
+              'They will be able to see your profile, reels, and send you messages again.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Unblock', style: TextStyle(color: Colors.blue)),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+        );
+        if (confirm == true) {
+          final myUid = _authService.currentUser?.uid ?? '';
+          await _followService.unblockUser(myUid, targetUid);
+          _isBlocked = false;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('@${_user?.username ?? 'User'} has been unblocked'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            setState(() {});
+          }
+        }
+      } else {
+        // Block
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Block @${_user?.username ?? 'user'}?'),
+            content: const Text(
+              'They won\'t be able to see your profile, reels, or send you messages. You will also unfollow each other.',
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Block', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      );
-      if (confirm == true) {
-        final myUid = _authService.currentUser?.uid ?? '';
-        await _followService.blockUser(myUid, targetUid);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('@${_user?.username ?? 'User'} has been blocked'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          Navigator.pop(context);
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Block', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+        );
+        if (confirm == true) {
+          final myUid = _authService.currentUser?.uid ?? '';
+          await _followService.blockUser(myUid, targetUid);
+          _isBlocked = true;
+          _isFollowing = false;
+          _followStatus = 'none';
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('@${_user?.username ?? 'User'} has been blocked'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            setState(() {});
+          }
         }
       }
     } else if (action == 'fraud') {
@@ -555,6 +617,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Private account check for non-owner
     final isPrivateAndNotFollowing =
         !_isOwn && (_user?.isPrivate ?? false) && !_isFollowing;
+
+    // Block check for non-owner
+    final isBlockedEither = !_isOwn && (_isBlocked || _isBlockedByThem);
 
     return Scaffold(
       backgroundColor: isDark
@@ -632,7 +697,32 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
           ],
-          body: isPrivateAndNotFollowing
+          body: isBlockedEither
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.block_rounded, size: 48, color: subColor),
+                      const SizedBox(height: 12),
+                      Text(
+                        _isBlocked ? 'You blocked this user' : 'You can\'t view this profile',
+                        style: GoogleFonts.inter(
+                          color: textColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isBlocked
+                            ? 'Unblock to see their content'
+                            : 'This user has restricted their profile',
+                        style: GoogleFonts.inter(color: subColor, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                )
+              : isPrivateAndNotFollowing
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1060,64 +1150,67 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     // Other user: Follow + Message + More buttons
+    final blocked = _isBlocked || _isBlockedByThem;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        ScaleTap(
-          onTap: _toggleFollow,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: (_isFollowing || _followStatus == 'pending')
-                  ? null
-                  : LinearGradient(colors: [accent, accent.withAlpha(200)]),
-              border: (_isFollowing || _followStatus == 'pending')
-                  ? Border.all(color: accent, width: 1.5)
-                  : null,
+        if (!blocked) ...[
+          ScaleTap(
+            onTap: _toggleFollow,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: (_isFollowing || _followStatus == 'pending')
+                    ? null
+                    : LinearGradient(colors: [accent, accent.withAlpha(200)]),
+                border: (_isFollowing || _followStatus == 'pending')
+                    ? Border.all(color: accent, width: 1.5)
+                    : null,
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  _followStatus == 'pending'
+                      ? 'Requested'
+                      : _isFollowing
+                      ? 'Following'
+                      : 'Follow',
+                  key: ValueKey(_followStatus),
+                  style: GoogleFonts.inter(
+                    color: (_isFollowing || _followStatus == 'pending')
+                        ? accent
+                        : Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
             ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
+          ),
+          const SizedBox(width: 12),
+          ScaleTap(
+            onTap: _openChat,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: accent, width: 1.5),
+              ),
               child: Text(
-                _followStatus == 'pending'
-                    ? 'Requested'
-                    : _isFollowing
-                    ? 'Following'
-                    : 'Follow',
-                key: ValueKey(_followStatus),
+                'Message',
                 style: GoogleFonts.inter(
-                  color: (_isFollowing || _followStatus == 'pending')
-                      ? accent
-                      : Colors.white,
+                  color: accent,
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        ScaleTap(
-          onTap: _openChat,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: accent, width: 1.5),
-            ),
-            child: Text(
-              'Message',
-              style: GoogleFonts.inter(
-                color: accent,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
+          const SizedBox(width: 8),
+        ],
         PopupMenuButton<String>(
           icon: Icon(Icons.more_vert_rounded, color: textColor, size: 22),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1133,13 +1226,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ],
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'block',
               child: Row(
                 children: [
-                  Icon(Icons.block_rounded, size: 20, color: Colors.red),
+                  Icon(
+                    _isBlocked ? Icons.check_circle_outline : Icons.block_rounded,
+                    size: 20,
+                    color: _isBlocked ? Colors.green : Colors.red,
+                  ),
                   SizedBox(width: 10),
-                  Text('Block User'),
+                  Text(_isBlocked ? 'Unblock User' : 'Block User'),
                 ],
               ),
             ),

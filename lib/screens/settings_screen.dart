@@ -12,6 +12,8 @@ import 'blocked_users_screen.dart';
 import 'security_settings_screen.dart';
 import 'drafts_screen.dart';
 import 'support_ticket_screen.dart';
+import 'account_health_screen.dart';
+import 'warnings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -767,6 +769,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // ═══ ACCOUNT ═══
           _buildSectionHeader('ACCOUNT', textColor),
+          _buildTile(
+            icon: Icons.health_and_safety_rounded,
+            title: 'Account Health',
+            subtitle: 'View your health score and standing',
+            onTap: () => Navigator.push(
+              context,
+              SlideRightRoute(page: const AccountHealthScreen()),
+            ),
+            isDark: isDark,
+            textColor: textColor,
+            subColor: subColor,
+          ),
+          _buildTile(
+            icon: Icons.warning_rounded,
+            title: 'Warnings',
+            subtitle: 'View and acknowledge account warnings',
+            onTap: () => Navigator.push(
+              context,
+              SlideRightRoute(page: const WarningsScreen()),
+            ),
+            isDark: isDark,
+            textColor: textColor,
+            subColor: subColor,
+          ),
           _buildTile(
             icon: Icons.drafts_rounded,
             title: 'Drafts',

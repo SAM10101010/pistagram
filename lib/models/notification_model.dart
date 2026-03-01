@@ -9,6 +9,7 @@ class NotificationModel {
   final String reelId;
   final String postId;
   final String commentId;
+  final String groupId;
   final String message;
   final bool read;
   final DateTime createdAt;
@@ -21,6 +22,7 @@ class NotificationModel {
     this.reelId = '',
     this.postId = '',
     this.commentId = '',
+    this.groupId = '',
     this.message = '',
     this.read = false,
     DateTime? createdAt,
@@ -35,6 +37,7 @@ class NotificationModel {
       reelId: map['reelId'] ?? '',
       postId: map['postId'] ?? '',
       commentId: map['commentId'] ?? '',
+      groupId: map['groupId'] ?? '',
       message: map['message'] ?? '',
       read: map['read'] ?? false,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -50,6 +53,7 @@ class NotificationModel {
       'reelId': reelId,
       'postId': postId,
       'commentId': commentId,
+      'groupId': groupId,
       'message': message,
       'read': read,
       'createdAt': Timestamp.fromDate(createdAt),
