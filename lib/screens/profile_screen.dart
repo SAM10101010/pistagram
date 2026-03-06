@@ -79,50 +79,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     _isOwn = uid == myUid;
     _tabController = TabController(length: _isOwn ? 5 : 4, vsync: this);
     widget.activeTabNotifier?.addListener(_onTabChanged);
-    _loadCachedProfile();
     _loadProfile();
   }
 
   void _onTabChanged() {
     if (widget.activeTabNotifier?.value == 4) {
       _loadProfile();
-    }
-  }
-
-  /// Load profile from local cache first for instant display
-  Future<void> _loadCachedProfile() async {
-    try {
-      final myUid = _authService.currentUser?.uid ?? '';
-      final uid = widget.userId ?? myUid;
-      _isOwn = uid == myUid;
-
-      final prefs = await SharedPreferences.getInstance();
-      final cachedJson = prefs.getString('profile_cache_$uid');
-      if (cachedJson != null) {
-        final data = jsonDecode(cachedJson) as Map<String, dynamic>;
-        // Restore timestamps as DateTime (stored as ISO strings)
-        if (data['createdAt'] is String) {
-          data['createdAt'] = null; // let fromMap default
-        }
-        if (data['updatedAt'] is String) {
-          data['updatedAt'] = null;
-        }
-        _user = UserModel(
-          uid: data['uid'] ?? '',
-          email: data['email'] ?? '',
-          username: data['username'] ?? '',
-          displayName: data['displayName'] ?? '',
-          bio: data['bio'] ?? '',
-          profilePicUrl: data['profilePicUrl'] ?? '',
-          accountType: data['accountType'] ?? 'public',
-          followersCount: data['followersCount'] ?? 0,
-          followingCount: data['followingCount'] ?? 0,
-          pointsBalance: data['pointsBalance'] ?? 0,
-        );
-        if (mounted) setState(() {});
-      }
-    } catch (e) {
-      debugPrint('Cache load error: $e');
     }
   }
 
@@ -351,18 +313,55 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
         if (confirm != true) return;
       }
-      await _followService.unfollowUser(myUid, targetUid);
-      _isFollowing = false;
-      _followStatus = 'none';
-    } else {
-      await _followService.followUser(myUid, targetUid);
-      // For private accounts, status becomes pending; for public, accepted
-      if (_user?.isPrivate ?? false) {
-        _followStatus = 'pending';
+
+      // Store previous state for rollback
+      final prevFollowing = _isFollowing;
+      final prevStatus = _followStatus;
+
+      // Optimistic: immediately show unfollowed
+      setState(() {
         _isFollowing = false;
-      } else {
-        _followStatus = 'accepted';
-        _isFollowing = true;
+        _followStatus = 'none';
+      });
+
+      try {
+        await _followService.unfollowUser(myUid, targetUid);
+      } catch (e) {
+        // Rollback on failure
+        if (mounted) {
+          setState(() {
+            _isFollowing = prevFollowing;
+            _followStatus = prevStatus;
+          });
+        }
+      }
+    } else {
+      // Store previous state for rollback
+      final prevFollowing = _isFollowing;
+      final prevStatus = _followStatus;
+
+      // Optimistic: immediately show followed/pending
+      final isPrivate = _user?.isPrivate ?? false;
+      setState(() {
+        if (isPrivate) {
+          _followStatus = 'pending';
+          _isFollowing = false;
+        } else {
+          _followStatus = 'accepted';
+          _isFollowing = true;
+        }
+      });
+
+      try {
+        await _followService.followUser(myUid, targetUid);
+      } catch (e) {
+        // Rollback on failure
+        if (mounted) {
+          setState(() {
+            _isFollowing = prevFollowing;
+            _followStatus = prevStatus;
+          });
+        }
       }
     }
     _loadProfile();
